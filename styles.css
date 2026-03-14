@@ -469,6 +469,119 @@ footer {
 
 .footer-links a:hover { color: var(--color-accent); }
 
+/* =============================================================
+   ANIMATION LAYER — Apple / Linear motion system
+   ============================================================= */
+
+/* ── Page-load progress bar ────────────────────────────────── */
+#page-progress {
+  position: fixed;
+  top: 0; left: 0;
+  width: 0%; height: 2px;
+  background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-accent-light) 60%, #a5b4fc 100%);
+  box-shadow: 0 0 12px rgba(88, 166, 255, 0.55);
+  z-index: 9999;
+  transition: width .9s cubic-bezier(.16, 1, .3, 1), opacity .5s;
+  pointer-events: none;
+}
+
+/* ── Cursor spotlight (updated via JS on :root) ─────────────── */
+:root {
+  --cursor-x: -600px;
+  --cursor-y: -600px;
+}
+
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: radial-gradient(
+    circle 380px at var(--cursor-x) var(--cursor-y),
+    rgba(88, 166, 255, 0.05) 0%,
+    transparent 70%
+  );
+  mix-blend-mode: screen;
+}
+
+/* ── Nav: smooth hide / reveal on scroll ────────────────────── */
+nav {
+  transition: transform .35s cubic-bezier(.16, 1, .3, 1);
+}
+
+nav.nav-hidden {
+  transform: translateY(-100%);
+}
+
+/* ── Nav animated underline indicator ───────────────────────── */
+.nav-links a {
+  display: inline-block;
+  position: relative;
+}
+
+.nav-links a::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  bottom: -3px;
+  height: 2px;
+  background: var(--color-accent);
+  border-radius: 2px;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform .3s cubic-bezier(.16, 1, .3, 1);
+}
+
+.nav-links a:hover::after,
+.nav-links a.active::after {
+  transform: scaleX(1);
+}
+
+/* ── Scroll reveal ───────────────────────────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity .75s cubic-bezier(.16, 1, .3, 1),
+              transform .75s cubic-bezier(.16, 1, .3, 1);
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── Hero word spans (split by JS) ──────────────────────────── */
+.hero-word {
+  display: inline-block;
+}
+
+/* ── Hero ambient gradient enhancement ──────────────────────── */
+.hero {
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(88, 166, 255, .07) 0%, transparent 100%),
+    radial-gradient(ellipse 35% 45% at 85% 70%, rgba(88, 166, 255, .04) 0%, transparent 80%);
+}
+
+/* ── Hero photo ring pulse ───────────────────────────────────── */
+@keyframes ring-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(88, 166, 255, .06), 0 8px 32px rgba(0, 0, 0, .6);
+  }
+  50% {
+    box-shadow: 0 0 0 9px rgba(88, 166, 255, .13), 0 8px 32px rgba(0, 0, 0, .6),
+                0 0 30px rgba(88, 166, 255, .1);
+  }
+}
+
+.photo-ring-pulse {
+  animation: ring-pulse 3.5s ease-in-out infinite;
+}
+
+/* ── Card perspective for 3-D tilt (set by JS) ──────────────── */
+.card {
+  transform-style: preserve-3d;
+}
+
 /* Responsive */
 @media (max-width: 700px) {
   .hero {
