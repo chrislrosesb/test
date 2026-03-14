@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>[Your Name] — Personal Website</title>
+  <meta name="description" content="Personal website of [Your Name] — developer, creator, and lifelong learner." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav>
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">[Your Name]</a>
+      <ul class="nav-links">
+        <li><a href="index.html" class="active">Home</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main>
+
+    <!-- Hero -->
+    <div class="container">
+      <section class="hero">
+        <div class="hero-text">
+          <span class="hero-eyebrow">Welcome</span>
+          <h1>Hi, I'm<br />[Your Name]</h1>
+          <p>Developer, creator, and lifelong learner. I build thoughtful digital experiences and share what I learn along the way.</p>
+          <div class="hero-cta">
+            <a href="about.html" class="btn btn-primary">About Me</a>
+            <a href="contact.html" class="btn btn-outline">Get in Touch</a>
+          </div>
+        </div>
+        <div class="hero-photo">
+          <div class="photo-placeholder" title="Your photo here">
+            <!-- Replace this div with an <img> tag pointing to your photo -->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+            </svg>
+            <span>Your Photo</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- What I Do -->
+    <section class="section" style="background: var(--color-bg-alt);">
+      <div class="container">
+        <div class="section-header">
+          <h2>What I Do</h2>
+          <p>A few areas I'm passionate about and actively working in.</p>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <div style="margin-bottom:1rem;">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+              </svg>
+            </div>
+            <h3>Development</h3>
+            <p>Building clean, performant web applications with modern tools and best practices.</p>
+          </div>
+          <div class="card">
+            <div style="margin-bottom:1rem;">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
+              </svg>
+            </div>
+            <h3>Design</h3>
+            <p>Crafting intuitive interfaces with a focus on usability, accessibility, and aesthetics.</p>
+          </div>
+          <div class="card">
+            <div style="margin-bottom:1rem;">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+              </svg>
+            </div>
+            <h3>Writing</h3>
+            <p>Sharing ideas, tutorials, and reflections on technology, creativity, and learning.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Recent Work -->
+    <section class="section">
+      <div class="container">
+        <div class="section-header">
+          <h2>Recent Projects</h2>
+          <p>Some things I've been working on lately.</p>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <span class="tag" style="margin-bottom:0.75rem;display:inline-block;">Web App</span>
+            <h3>Project One</h3>
+            <p>A brief description of this project and the problem it solves. Replace with your real work.</p>
+          </div>
+          <div class="card">
+            <span class="tag" style="margin-bottom:0.75rem;display:inline-block;">Open Source</span>
+            <h3>Project Two</h3>
+            <p>A brief description of this project and the problem it solves. Replace with your real work.</p>
+          </div>
+          <div class="card">
+            <span class="tag" style="margin-bottom:0.75rem;display:inline-block;">Tool</span>
+            <h3>Project Three</h3>
+            <p>A brief description of this project and the problem it solves. Replace with your real work.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="section" style="background: var(--color-bg-alt); text-align: center;">
+      <div class="container" style="max-width: 560px;">
+        <h2>Let's Work Together</h2>
+        <p style="margin: 1rem 0 2rem;">Have a project in mind or just want to say hello? I'd love to hear from you.</p>
+        <a href="contact.html" class="btn btn-primary">Get in Touch</a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-inner">
+      <p>&copy; 2026 [Your Name]. All rights reserved.</p>
+      <ul class="footer-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+    </div>
+  </footer>
+
+</body>
+</html>
