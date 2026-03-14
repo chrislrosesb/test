@@ -68,34 +68,73 @@
           <span class="section-eyebrow">// hardware</span>
           <h2>Hardware</h2>
         </div>
-        <div class="grid-3">
-          <div class="card anim-fade-up">
-            <div style="margin-bottom:0.75rem;">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <div class="hardware-grid">
+
+          <!-- MacBook Pro 14" M1 -->
+          <div class="hardware-card anim-fade-up">
+            <div class="hardware-photo-wrap">
+              <img
+                class="hardware-photo"
+                src="images/macbook-pro.png"
+                alt="Apple MacBook Pro 14-inch M1"
+                loading="lazy"
+                onerror="this.style.display='none'"
+              />
+              <svg class="hardware-photo-fallback" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
               </svg>
             </div>
-            <h3>Apple MacBook Pro</h3>
-            <p>Apple Silicon — the daily driver. Fast, reliable, and the best battery life I've ever had on a laptop. macOS is where I'm most productive.</p>
+            <div class="hardware-card-body">
+              <h3>Apple MacBook Pro 14"</h3>
+              <span class="hardware-badge">M1 chip</span>
+              <p>The 14-inch M1 MacBook Pro is the daily driver. Apple Silicon delivers the horsepower for video calls, CRM, and everything in between — with all-day battery life I can actually count on.</p>
+            </div>
           </div>
-          <div class="card anim-fade-up">
-            <div style="margin-bottom:0.75rem;">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+
+          <!-- iPhone 17 Pro -->
+          <div class="hardware-card anim-fade-up">
+            <div class="hardware-photo-wrap">
+              <img
+                class="hardware-photo"
+                src="images/iphone-17-pro.png"
+                alt="Apple iPhone 17 Pro"
+                loading="lazy"
+                onerror="this.style.display='none'"
+              />
+              <svg class="hardware-photo-fallback" width="36" height="56" viewBox="0 0 14 24" fill="none" stroke="var(--color-accent)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="1" y="1" width="12" height="22" rx="2.5"/>
+                <line x1="5" y1="19.5" x2="9" y2="19.5" stroke-width="1.8"/>
               </svg>
             </div>
-            <h3>iPhone Pro</h3>
-            <p>Always the latest iPhone Pro. iOS is central to how I work — email, calendar, 1Password, and Webex are all within reach at any moment.</p>
+            <div class="hardware-card-body">
+              <h3>iPhone 17 Pro</h3>
+              <span class="hardware-badge">A19 Pro</span>
+              <p>Always the latest Pro model. The 17 Pro's camera plateau is a generational leap — plus the A19 Pro chip handles 1Password, Webex, email, and AI features without skipping a beat.</p>
+            </div>
           </div>
-          <div class="card anim-fade-up">
-            <div style="margin-bottom:0.75rem;">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+
+          <!-- Apple iPad M4 -->
+          <div class="hardware-card anim-fade-up">
+            <div class="hardware-photo-wrap">
+              <img
+                class="hardware-photo"
+                src="images/ipad-m4.png"
+                alt="Apple iPad Pro M4"
+                loading="lazy"
+                onerror="this.style.display='none'"
+              />
+              <svg class="hardware-photo-fallback" width="44" height="56" viewBox="0 0 18 24" fill="none" stroke="var(--color-accent)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="1" y="1" width="16" height="22" rx="2.5"/>
+                <circle cx="9" cy="19.5" r="1.2"/>
               </svg>
             </div>
-            <h3>Unifi Network Stack</h3>
-            <p>Ubiquiti Unifi at home and in the office — clean management interface, enterprise-grade reliability, and a setup I can actually demonstrate to clients.</p>
+            <div class="hardware-card-body">
+              <h3>Apple iPad M4</h3>
+              <span class="hardware-badge">M4 chip</span>
+              <p>The M4 iPad handles presentations, demos with clients, and light content creation on the go. The Liquid Retina XDR display is perfect for showing network diagrams and product decks.</p>
+            </div>
           </div>
+
         </div>
       </div>
     </section>
