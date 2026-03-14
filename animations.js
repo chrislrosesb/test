@@ -359,6 +359,44 @@
       heroPhoto.classList.add('photo-ring-pulse');
     }
 
+    /* ── 9. Achievement counters ───────────────────────────────── */
+    (function initAchievementCounters() {
+      var counterEls = document.querySelectorAll('.achievement-number[data-counter-to]');
+      if (!counterEls.length) return;
+
+      if (!motionOK) {
+        counterEls.forEach(function (el) {
+          el.textContent = el.getAttribute('data-counter-to') + (el.getAttribute('data-counter-suffix') || '');
+        });
+        return;
+      }
+
+      counterEls.forEach(function (el) {
+        var target = parseInt(el.getAttribute('data-counter-to'), 10);
+        var suffix = el.getAttribute('data-counter-suffix') || '';
+        var obj    = { val: 0 };
+
+        ScrollTrigger.create({
+          trigger: el,
+          start: 'top 88%',
+          once: true,
+          onEnter: function () {
+            gsap.to(obj, {
+              val: target,
+              duration: 1.6,
+              ease: 'power2.out',
+              onUpdate: function () {
+                el.textContent = Math.round(obj.val) + suffix;
+              },
+              onComplete: function () {
+                el.textContent = target + suffix;
+              }
+            });
+          }
+        });
+      });
+    }());
+
   }); /* end onReady */
 
 }());
