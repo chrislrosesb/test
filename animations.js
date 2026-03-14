@@ -97,6 +97,20 @@
 
   /* ── 4. Hero entrance sequence ───────────────────────────────── */
   function initHeroAnimation() {
+    var h1 = document.querySelector('.hero h1');
+    if (!h1) return;
+
+    // Split h1 into per-word spans (works on plain text h1, preserves <br>)
+    h1.innerHTML = h1.innerHTML
+      .split(/(<br\s*\/?>)/gi)
+      .map(function (chunk) {
+        if (/<br/i.test(chunk)) return chunk;
+        return chunk.trim().split(/\s+/).filter(Boolean)
+          .map(function (w) { return '<span class="hero-word">' + w + '</span>'; })
+          .join(' ');
+      })
+      .join('');
+
     var heroWords   = document.querySelectorAll('.hero-word');
     var heroEyebrow = document.querySelector('.hero-eyebrow');
     var heroP       = document.querySelector('.hero-text > p');
