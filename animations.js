@@ -22,6 +22,18 @@
       '.hero-text > p', '.hero-cta', '.hero-photo'
     ], { opacity: 1, y: 0, x: 0, scale: 1 });
     initNavEnhancements();
+    // Still init typewriter (it shows static text when motion disabled)
+    (function initTypewriterStatic() {
+      var container = document.querySelector('.hero-typewriter');
+      if (!container) return;
+      var textEl = document.getElementById('typewriter-text');
+      if (!textEl) return;
+      var phrasesRaw = container.getAttribute('data-phrases');
+      try {
+        var phrases = phrasesRaw ? JSON.parse(phrasesRaw) : [];
+        if (phrases.length) textEl.textContent = phrases[0];
+      } catch (e) {}
+    }());
     return;
   }
 
@@ -160,6 +172,103 @@
       fn();
     }
   }
+
+  /* ── 3b. Scroll progress bar ────────────────────────────────── */
+  var scrollBar = document.createElement('div');
+  scrollBar.id = 'scroll-progress';
+  document.body.prepend(scrollBar);
+
+  window.addEventListener('scroll', function () {
+    var scrollTop  = window.scrollY || document.documentElement.scrollTop;
+    var docHeight  = document.documentElement.scrollHeight - window.innerHeight;
+    var pct        = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+    scrollBar.style.width = pct + '%';
+  }, { passive: true });
+
+  /* ── 3c. Typewriter cycling text ────────────────────────────── */
+  function initTypewriter() {
+    var container = document.querySelector('.hero-typewriter');
+    if (!container) return;
+    var textEl = document.getElementById('typewriter-text');
+    if (!textEl) return;
+
+    var phrasesRaw = container.getAttribute('data-phrases');
+    var phrases    = phrasesRaw ? JSON.parse(phrasesRaw) : [];
+    if (!phrases.length) return;
+
+    if (!motionOK) {
+      textEl.textContent = phrases[0];
+      return;
+    }
+
+    var idx = 0, charIdx = 0, deleting = false;
+    var TYPING_SPEED = 75, DELETE_SPEED = 40, PAUSE_AFTER = 2400, PAUSE_BEFORE = 350;
+
+    function tick() {
+      var current = phrases[idx];
+      if (!deleting) {
+        charIdx++;
+        textEl.textContent = current.slice(0, charIdx);
+        if (charIdx === current.length) {
+          deleting = true;
+          setTimeout(tick, PAUSE_AFTER);
+          return;
+        }
+        setTimeout(tick, TYPING_SPEED);
+      } else {
+        charIdx--;
+        textEl.textContent = current.slice(0, charIdx);
+        if (charIdx === 0) {
+          deleting = false;
+          idx = (idx + 1) % phrases.length;
+          setTimeout(tick, PAUSE_BEFORE);
+          return;
+        }
+        setTimeout(tick, DELETE_SPEED);
+      }
+    }
+    setTimeout(tick, 1300);
+  }
+  initTypewriter();
+
+  /* ── 3d. Page transitions ────────────────────────────────────── */
+  function initPageTransitions() {
+    var overlay = document.createElement('div');
+    overlay.id  = 'page-transition-overlay';
+    document.body.prepend(overlay);
+
+    // Animate page IN (overlay fades out on load)
+    gsap.to(overlay, {
+      opacity: 0,
+      duration: 0.4,
+      ease: 'power2.out',
+      onComplete: function () { overlay.style.pointerEvents = 'none'; }
+    });
+
+    // Expose for command palette
+    window.pageTransitionTo = function (href) {
+      overlay.style.pointerEvents = 'all';
+      gsap.to(overlay, {
+        opacity: 1,
+        duration: 0.28,
+        ease: 'power2.in',
+        onComplete: function () { window.location.href = href; }
+      });
+    };
+
+    // Intercept nav + internal links
+    document.querySelectorAll('a[href]').forEach(function (link) {
+      var href = link.getAttribute('href');
+      if (!href || href.charAt(0) === '#' || href.indexOf('mailto:') === 0 ||
+          href.indexOf('tel:') === 0 || link.target === '_blank') return;
+      if (href.indexOf('http') === 0 && href.indexOf(window.location.origin) !== 0) return;
+      link.addEventListener('click', function (e) {
+        e.preventDefault();
+        window.pageTransitionTo(link.href);
+      });
+    });
+  }
+  initPageTransitions();
 
   onReady(function () {
 

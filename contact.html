@@ -4,7 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Contact — Chris Rose</title>
-  <meta name="description" content="Get in touch with Chris Rose — VP of Cybersecurity and Network Operations at Aseva." />
+  <meta name="description" content="Get in touch with Chris Rose — technology executive, VP of Cybersecurity and Network Operations at Aseva, Santa Barbara CA." />
+  <!-- Theme: apply before paint to prevent flash -->
+  <script>(function(){var s=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');if(s==='light')document.documentElement.setAttribute('data-theme','light');}());</script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -22,7 +24,27 @@
         <li><a href="index.html">Home</a></li>
         <li><a href="about.html">About</a></li>
         <li><a href="contact.html" class="active">Contact</a></li>
+        <li><a href="uses.html">Uses</a></li>
       </ul>
+      <div class="nav-actions">
+        <button id="theme-toggle" class="nav-action-btn" aria-label="Toggle light/dark mode" title="Toggle theme">
+          <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+        <button id="cmd-palette-trigger" class="nav-action-btn" aria-label="Open command palette" title="Command palette (⌘K)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <span class="nav-action-kbd">⌘K</span>
+        </button>
+      </div>
     </div>
   </nav>
 
@@ -82,12 +104,6 @@
           </div>
 
           <!-- Contact Form -->
-          <!--
-            NOTE: GitHub Pages is a static host — this form is HTML only.
-            To make it functional, connect it to a form service such as:
-              - Formspree (formspree.io) — add action="https://formspree.io/f/YOUR_ID"
-            See CLAUDE.md for details.
-          -->
           <form
             class="contact-form anim-fade-up"
             action="https://formspree.io/f/YOUR_FORM_ID"
@@ -95,46 +111,22 @@
           >
             <div class="form-group">
               <label for="name">Name</label>
-              <input
-                type="text"
-                id="name"
-                name="name"
-                placeholder="Jane Smith"
-                required
-                autocomplete="name"
-              />
+              <input type="text" id="name" name="name" placeholder="Jane Smith" required autocomplete="name" />
             </div>
 
             <div class="form-group">
               <label for="email">Email</label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                placeholder="jane@example.com"
-                required
-                autocomplete="email"
-              />
+              <input type="email" id="email" name="email" placeholder="jane@example.com" required autocomplete="email" />
             </div>
 
             <div class="form-group">
               <label for="subject">Subject</label>
-              <input
-                type="text"
-                id="subject"
-                name="subject"
-                placeholder="What's this about?"
-              />
+              <input type="text" id="subject" name="subject" placeholder="What's this about?" />
             </div>
 
             <div class="form-group">
               <label for="message">Message</label>
-              <textarea
-                id="message"
-                name="message"
-                placeholder="Tell me what's on your mind…"
-                required
-              ></textarea>
+              <textarea id="message" name="message" placeholder="Tell me what's on your mind…" required></textarea>
             </div>
 
             <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
@@ -154,14 +146,46 @@
   <footer>
     <div class="footer-inner">
       <p>&copy; 2026 Chris Rose. All rights reserved.</p>
+      <div class="now-playing paused" id="now-playing">
+        <div class="now-playing-eq" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <span class="now-playing-track now-playing-label">Last.fm not configured</span>
+      </div>
       <ul class="footer-links">
         <li><a href="index.html">Home</a></li>
         <li><a href="about.html">About</a></li>
         <li><a href="contact.html">Contact</a></li>
+        <li><a href="uses.html">Uses</a></li>
       </ul>
     </div>
   </footer>
 
+  <!-- Command Palette -->
+  <div id="cmd-overlay" role="dialog" aria-modal="true" aria-label="Command palette" hidden>
+    <div id="cmd-backdrop"></div>
+    <div id="cmd-modal">
+      <div id="cmd-search-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input id="cmd-input" type="text" placeholder="Search or jump to…" autocomplete="off" spellcheck="false" />
+        <kbd>Esc</kbd>
+      </div>
+      <div id="cmd-results" role="listbox" aria-label="Commands"></div>
+      <div id="cmd-footer">
+        <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+        <span><kbd>↵</kbd> select</span>
+        <span><kbd>Esc</kbd> close</span>
+      </div>
+    </div>
+  </div>
+
   <script src="animations.js" defer></script>
+  <script src="theme.js" defer></script>
+  <script src="particles.js" defer></script>
+  <script src="cursor.js" defer></script>
+  <script src="command-palette.js" defer></script>
+  <script src="easter-egg.js" defer></script>
 </body>
 </html>
