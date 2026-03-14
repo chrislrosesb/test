@@ -235,6 +235,7 @@ main {
   border-radius: 50%;
   background: linear-gradient(135deg, #1c2d4a 0%, #0d1f3c 45%, #111827 100%);
   border: 1px solid var(--color-border);
+  object-fit: cover;
   display: flex;
   flex-direction: column;
   align-items: center;
