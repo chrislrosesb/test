@@ -648,13 +648,8 @@ nav.scrolled {
 }
 
 /* ── GSAP animation base states ─────────────────────────────── */
-/* Elements start invisible; GSAP animates them in.
-   The .no-js class on <html> ensures content is visible if JS fails. */
-.anim-fade-up {
-  opacity: 0;
-  transform: translateY(32px);
-}
-
+/* Initial opacity/transform is set by GSAP at runtime, NOT hardcoded in CSS.
+   This ensures content is always visible if JS or GSAP fails to load. */
 .no-js .anim-fade-up,
 .no-js .anim-fade-in {
   opacity: 1;

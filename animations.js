@@ -165,17 +165,20 @@
 
     /* ── 5. Scroll reveal system ───────────────────────────────── */
     if (document.querySelectorAll('.anim-fade-up').length) {
+      // GSAP owns the initial hidden state — never CSS — so content is always
+      // visible if GSAP fails to load or ScrollTrigger doesn't fire.
+      gsap.set('.anim-fade-up', { opacity: 0, y: 32 });
+
       ScrollTrigger.batch('.anim-fade-up', {
         onEnter: function (elements) {
-          gsap.from(elements, {
-            opacity: 0,
-            y: 32,
+          gsap.to(elements, {
+            opacity: 1,
+            y: 0,
             duration: 0.65,
             stagger: 0.08,
             ease: 'power3.out',
             overwrite: true,
             onComplete: function () {
-              // Release GPU compositing layer after animation completes
               elements.forEach(function (el) {
                 el.style.willChange = 'auto';
               });
@@ -222,12 +225,14 @@
 
     /* ── 7. Bento cell cascade animation ───────────────────────── */
     if (document.querySelectorAll('.bento-cell').length) {
+      gsap.set('.bento-cell', { opacity: 0, y: 20, scale: 0.96 });
+
       ScrollTrigger.batch('.bento-cell', {
         onEnter: function (elements) {
-          gsap.from(elements, {
-            opacity: 0,
-            y: 20,
-            scale: 0.96,
+          gsap.to(elements, {
+            opacity: 1,
+            y: 0,
+            scale: 1,
             duration: 0.45,
             stagger: 0.04,
             ease: 'power2.out',
