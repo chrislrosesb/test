@@ -12,7 +12,10 @@
   var SUPABASE_ANON = 'sb_publishable_RPJSQlVO4isbKnZve8NlWg_55EO350Y';
   var db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
-  var ALLORIGINS = 'https://api.allorigins.win/get?url=';
+  var OG_PROXIES = [
+    { url: 'https://api.allorigins.win/get?url=', json: true  },
+    { url: 'https://corsproxy.io/?url=',          json: false },
+  ];
   var THREADS_OE = 'https://www.threads.net/api/oembed?url=';
 
   // ── State ─────────────────────────────────────────────────────
@@ -401,22 +404,43 @@
       try { domain = new URL(url).hostname.replace(/^www\./, ''); } catch (e) {}
 
       var isThreads = domain.indexOf('threads.net') !== -1;
-      var fetchUrl  = isThreads
-        ? THREADS_OE + encodeURIComponent(url)
-        : ALLORIGINS + encodeURIComponent(url);
 
-      fetch(fetchUrl)
-        .then(function (r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.json();
-        })
-        .then(function (data) {
-          var foundImage = false;
-          if (isThreads) {
-            if (data.title          && !linkTitle.value) linkTitle.value = data.title;
-            if (data.thumbnail_url)  { linkTitle.dataset.ogImage = data.thumbnail_url; foundImage = true; }
-          } else {
-            var html = data.contents || '';
+      if (isThreads) {
+        fetch(THREADS_OE + encodeURIComponent(url))
+          .then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          })
+          .then(function (data) {
+            if (data.title && !linkTitle.value) linkTitle.value = data.title;
+            if (data.thumbnail_url) linkTitle.dataset.ogImage = data.thumbnail_url;
+            if (domain) {
+              linkTitle.dataset.domain  = domain;
+              linkTitle.dataset.favicon = 'https://www.google.com/s2/favicons?domain=' + domain + '&sz=64';
+            }
+            ogStatus.textContent = data.thumbnail_url ? 'Metadata loaded.' : 'Metadata loaded \u2014 no preview image.';
+            setTimeout(function () { ogStatus.textContent = ''; }, 2500);
+          })
+          .catch(function (err) {
+            console.warn('[reading-list] Threads OG fetch failed:', err.message);
+            ogStatus.textContent = 'Could not fetch metadata \u2014 fill in manually.';
+          });
+        return;
+      }
+
+      function tryProxy(index) {
+        if (index >= OG_PROXIES.length) {
+          ogStatus.textContent = 'Could not fetch metadata \u2014 fill in manually.';
+          return;
+        }
+        var proxy = OG_PROXIES[index];
+        fetch(proxy.url + encodeURIComponent(url))
+          .then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return proxy.json ? r.json() : r.text();
+          })
+          .then(function (data) {
+            var html = proxy.json ? (data.contents || '') : data;
             var doc  = new DOMParser().parseFromString(html, 'text/html');
             var meta = function (sel) {
               var el = doc.querySelector(sel);
@@ -427,19 +451,21 @@
             var i = meta('meta[property="og:image"]')       || meta('meta[name="twitter:image"]')       || '';
             if (t && !linkTitle.value) linkTitle.value = t;
             if (d && !linkDesc.value)  linkDesc.value  = d;
-            if (i) { linkTitle.dataset.ogImage = i; foundImage = true; }
-          }
-          if (domain) {
-            linkTitle.dataset.domain  = domain;
-            linkTitle.dataset.favicon = 'https://www.google.com/s2/favicons?domain=' + domain + '&sz=64';
-          }
-          ogStatus.textContent = foundImage ? 'Metadata loaded.' : 'Metadata loaded \u2014 no preview image.';
-          setTimeout(function () { ogStatus.textContent = ''; }, 2500);
-        })
-        .catch(function (err) {
-          console.warn('[reading-list] OG fetch failed:', err.message);
-          ogStatus.textContent = 'Could not fetch metadata \u2014 fill in manually.';
-        });
+            if (i) linkTitle.dataset.ogImage = i;
+            if (domain) {
+              linkTitle.dataset.domain  = domain;
+              linkTitle.dataset.favicon = 'https://www.google.com/s2/favicons?domain=' + domain + '&sz=64';
+            }
+            ogStatus.textContent = i ? 'Metadata loaded.' : 'Metadata loaded \u2014 no preview image.';
+            setTimeout(function () { ogStatus.textContent = ''; }, 2500);
+          })
+          .catch(function (err) {
+            console.warn('[reading-list] OG proxy ' + index + ' failed:', err.message);
+            tryProxy(index + 1);
+          });
+      }
+
+      tryProxy(0);
     }
 
     // ── Add / Edit modal ─────────────────────────────────────────
