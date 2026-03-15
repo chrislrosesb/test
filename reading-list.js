@@ -652,7 +652,7 @@
         'Accept':        'application/vnd.github.v3+json',
         'Content-Type':  'application/json'
       };
-      return fetch(API_URL, { headers: headers })
+      return fetch(API_URL + '?ref=' + BRANCH, { headers: headers })
         .then(function (r) {
           if (r.status === 404) return null; // file doesn't exist yet — will be created
           if (!r.ok) throw new Error('GET failed: HTTP ' + r.status);
@@ -711,7 +711,7 @@
         'Accept':        'application/vnd.github.v3+json',
         'Content-Type':  'application/json'
       };
-      fetch(API_URL, { headers: headers })
+      fetch(API_URL + '?ref=' + BRANCH, { headers: headers })
         .then(function (r) { return r.json(); })
         .then(function (file) {
           var sha     = file.sha;
@@ -826,7 +826,7 @@
         'Accept':        'application/vnd.github.v3+json',
         'Content-Type':  'application/json'
       };
-      fetch(API_URL, { headers: headers })
+      fetch(API_URL + '?ref=' + BRANCH, { headers: headers })
         .then(function (r) {
           if (r.status === 404) return null; // file doesn't exist yet — will be created
           if (!r.ok) throw new Error('HTTP ' + r.status);
