@@ -152,18 +152,24 @@
     }, exitDelay);
   }
 
-  // ── Skip handler ───────────────────────────────────────────
+  // ── Skip handler (active only before pills appear) ─────────
+  var skipEnabled = true;
+
   function skip() {
-    if (finished) return;
+    if (finished || !skipEnabled) return;
     skipped = true;
     if (tl) tl.progress(1);
     finishIntro('blue');
   }
 
-  // Skip on any key or click/tap
+  function disableSkip() {
+    skipEnabled = false;
+    if (skipEl) gsap.to(skipEl, { opacity: 0, duration: 0.3 });
+  }
+
+  // Skip on any key or click/tap (disabled once pills show)
   document.addEventListener('keydown', function onSkipKey(e) {
-    if (!finished && !overlay.classList.contains('intro-hidden')) {
-      // Don't skip if user is interacting with pills
+    if (!finished && !overlay.classList.contains('intro-hidden') && skipEnabled) {
       if (e.target.classList && e.target.classList.contains('intro-pill')) return;
       skip();
       document.removeEventListener('keydown', onSkipKey);
@@ -172,6 +178,41 @@
 
   if (skipEl) {
     skipEl.addEventListener('click', skip);
+  }
+
+  // ── 90s internet chaos (red pill easter egg) ──────────────
+  function runChaosSequence() {
+    var chaosDiv    = overlay.querySelector('.intro-chaos');
+    var chaosBg     = overlay.querySelector('.intro-chaos-bg');
+    var banner      = overlay.querySelector('.intro-chaos-banner');
+    var visitor     = overlay.querySelector('.intro-chaos-visitor');
+    var popup       = overlay.querySelector('.intro-chaos-popup');
+    var marquee     = overlay.querySelector('.intro-chaos-marquee');
+    var counter     = overlay.querySelector('.intro-chaos-counter');
+    var exitText    = overlay.querySelector('.intro-chaos-exit');
+
+    if (!chaosDiv) { finishIntro('red'); return; }
+
+    // Hide current intro elements
+    gsap.to([wakeText, pills], { opacity: 0, duration: 0.2 });
+
+    // Show chaos container
+    chaosDiv.style.display = 'flex';
+    gsap.to(chaosBg, { opacity: 1, duration: 0.3 });
+
+    // Stagger in the chaos elements
+    gsap.to(banner,  { opacity: 1, duration: 0.01, delay: 0.3 });
+    gsap.to(visitor, { opacity: 1, duration: 0.01, delay: 0.7 });
+    gsap.to(popup,   { opacity: 1, duration: 0.01, delay: 1.1 });
+    gsap.to(marquee, { opacity: 1, duration: 0.01, delay: 1.5 });
+    gsap.to(counter, { opacity: 1, duration: 0.01, delay: 1.8 });
+
+    // After chaos plays, show the exit message
+    setTimeout(function () {
+      typeText(exitText, '...you can\'t stay here. Welcome to reality.', 45, function () {
+        setTimeout(function () { finishIntro('red'); }, 800);
+      });
+    }, 2800);
   }
 
   // ── Pill click handlers ────────────────────────────────────
@@ -187,30 +228,13 @@
     pillRed.addEventListener('click', function () {
       if (finished) return;
       pillRed.classList.add('intro-pill--glow');
-      // Brief easter-egg: flash matrix rain green, then reveal
-      if (matrixCanvas) {
-        gsap.to(matrixCanvas, { opacity: 0.7, duration: 0.3 });
-      }
-      startIntroMatrix();
-      setTimeout(function () { finishIntro('red'); }, 800);
+      runChaosSequence();
     });
   }
 
   // ── Master timeline ────────────────────────────────────────
   function runIntro() {
-    tl = gsap.timeline({
-      onComplete: function () {
-        // Auto-select blue pill after timeline finishes if user hasn't chosen
-        if (!finished && !skipped) {
-          setTimeout(function () {
-            if (!finished) {
-              if (pillBlue) pillBlue.classList.add('intro-pill--glow');
-              setTimeout(function () { finishIntro('blue'); }, 700);
-            }
-          }, 2500);
-        }
-      }
-    });
+    tl = gsap.timeline();
 
     // Phase 1: Classic Mac boot (~0 – 3s)
     // Happy Mac appears
@@ -282,7 +306,9 @@
       duration: 0.4,
     }, 6.0);
 
-    // Pills appear
+    // Pills appear — disable skip so user must choose
+    tl.call(disableSkip, null, 6.5);
+
     tl.to(pills, {
       opacity: 1,
       duration: 0.6,

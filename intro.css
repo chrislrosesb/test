@@ -239,6 +239,135 @@ body.intro-active {
   mix-blend-mode: overlay;
 }
 
+/* ── 90s Internet Chaos (red pill easter egg) ────────────── */
+.intro-chaos {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  overflow: hidden;
+}
+
+.intro-chaos-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    repeating-linear-gradient(45deg, #ff00ff22 0px, #ff00ff22 10px, transparent 10px, transparent 20px),
+    repeating-linear-gradient(-45deg, #00ffff22 0px, #00ffff22 10px, transparent 10px, transparent 20px),
+    linear-gradient(135deg, #1a0030, #002a00, #00002a);
+  opacity: 0;
+}
+
+.intro-chaos-banner {
+  font-family: 'Comic Sans MS', 'Chalkboard SE', cursive;
+  font-size: clamp(1.5rem, 5vw, 2.5rem);
+  font-weight: bold;
+  text-align: center;
+  animation: intro-rainbow 0.8s linear infinite;
+  text-shadow: 2px 2px 0 #000;
+  opacity: 0;
+}
+
+@keyframes intro-rainbow {
+  0%   { color: #ff0000; }
+  16%  { color: #ff8800; }
+  33%  { color: #ffff00; }
+  50%  { color: #00ff00; }
+  66%  { color: #0088ff; }
+  83%  { color: #ff00ff; }
+  100% { color: #ff0000; }
+}
+
+.intro-chaos-visitor {
+  font-family: 'Comic Sans MS', cursive;
+  font-size: clamp(1rem, 3vw, 1.4rem);
+  color: #ffff00;
+  text-shadow: 1px 1px 0 #000;
+  animation: intro-blink-text 0.5s step-end infinite;
+  opacity: 0;
+}
+
+@keyframes intro-blink-text {
+  0%, 100% { visibility: visible; }
+  50%      { visibility: hidden; }
+}
+
+.intro-chaos-popup {
+  border: 3px outset #dfdfdf;
+  background: #c0c0c0;
+  min-width: 280px;
+  max-width: 90vw;
+  box-shadow: 4px 4px 0 rgba(0,0,0,0.5);
+  opacity: 0;
+}
+
+.intro-chaos-popup-titlebar {
+  background: linear-gradient(90deg, #000080, #1084d0);
+  color: #fff;
+  font-family: 'Tahoma', 'MS Sans Serif', sans-serif;
+  font-size: 0.8rem;
+  font-weight: bold;
+  padding: 3px 6px;
+}
+
+.intro-chaos-popup-body {
+  padding: 1.2rem 1rem;
+  font-family: 'Comic Sans MS', cursive;
+  font-size: clamp(0.85rem, 2.5vw, 1.1rem);
+  color: #ff0000;
+  text-align: center;
+  font-weight: bold;
+  cursor: pointer;
+  animation: intro-blink-text 0.7s step-end infinite;
+}
+
+.intro-chaos-marquee {
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  font-family: 'Comic Sans MS', cursive;
+  font-size: clamp(0.8rem, 2vw, 1rem);
+  color: #00ff00;
+  text-shadow: 1px 1px 0 #000;
+  opacity: 0;
+}
+
+.intro-chaos-marquee span {
+  display: inline-block;
+  animation: intro-marquee-scroll 6s linear infinite;
+}
+
+@keyframes intro-marquee-scroll {
+  0%   { transform: translateX(100vw); }
+  100% { transform: translateX(-100%); }
+}
+
+.intro-chaos-counter {
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  color: #0f0;
+  background: #000;
+  border: 2px inset #888;
+  padding: 0.3rem 0.8rem;
+  opacity: 0;
+}
+
+.intro-chaos-exit {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: clamp(0.85rem, 2.5vw, 1.1rem);
+  color: #00ff41;
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
+  margin-top: 1rem;
+  min-height: 1.5em;
+}
+
 /* ── Responsive ────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .intro-pills {
