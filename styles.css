@@ -2233,3 +2233,58 @@ body.glitch-active::after {
 
   .admin-fab { bottom: 1rem; right: 1rem; }
 }
+
+/* ── Category chips ─────────────────────────────────────────── */
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(88,166,255,0.12);
+  color: var(--color-accent);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  cursor: default;
+}
+
+.cat-chip button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font-size: 0.9rem;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity var(--transition);
+}
+
+.cat-chip button:hover { opacity: 1; }
+
+/* ── Persist toast ──────────────────────────────────────────── */
+.persist-toast {
+  position: fixed;
+  bottom: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+  font-family: var(--font-sans);
+  z-index: 20000;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+}
+
+.persist-toast--success {
+  background: #1a3a1a;
+  color: #56d364;
+  border: 1px solid #2ea043;
+}
+
+.persist-toast--error {
+  background: #3a1a1a;
+  color: #f85149;
+  border: 1px solid #da3633;
+}

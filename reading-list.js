@@ -60,6 +60,13 @@
     var authError    = document.getElementById('auth-error');
     var authSubmit   = document.getElementById('auth-submit-btn');
 
+    var patWarning       = document.getElementById('pat-warning');
+    var categoryChips    = document.getElementById('category-chips');
+    var newCategoryInput = document.getElementById('new-category-input');
+    var addCategoryBtn   = document.getElementById('add-category-btn');
+    var categoryStatus   = document.getElementById('category-status');
+    var persistToast     = document.getElementById('persist-toast');
+
     var linkModal      = document.getElementById('link-modal');
     var linkBackdrop   = document.getElementById('link-modal-backdrop');
     var linkModalClose = document.getElementById('link-modal-close');
@@ -322,6 +329,8 @@
           settingsPanel.classList.remove('open');
         } else {
           settingsPat.value = localStorage.getItem('rl_pat') || '';
+          updatePatWarning();
+          renderCategoryChips();
           // Build bookmarklet href
           var bl = 'javascript:(function(){' +
             "var u=encodeURIComponent(location.href);" +
@@ -382,12 +391,34 @@
       var pat = settingsPat.value.trim();
       if (pat) { localStorage.setItem('rl_pat', pat); }
       else      { localStorage.removeItem('rl_pat'); }
+      updatePatWarning();
       settingsPanel.classList.remove('open');
     });
 
     settingsLock.addEventListener('click', function () {
       settingsPanel.classList.remove('open');
       deactivateAdmin();
+    });
+
+    addCategoryBtn.addEventListener('click', function () {
+      var name = newCategoryInput.value.trim();
+      if (!name) return;
+      if (state.categories.indexOf(name) !== -1) {
+        categoryStatus.style.color = '#f85149';
+        categoryStatus.textContent = 'Category already exists.';
+        return;
+      }
+      state.categories.push(name);
+      newCategoryInput.value = '';
+      categoryStatus.textContent = '';
+      renderCategoryChips();
+      buildCategorySelect();
+      buildFilterTabs();
+      persistCategories();
+    });
+
+    newCategoryInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); addCategoryBtn.click(); }
     });
 
     // ── OG fetch (on URL input) ──────────────────────────────────
@@ -415,9 +446,10 @@
           return r.json();
         })
         .then(function (data) {
+          var foundImage = false;
           if (isThreads) {
             if (data.title          && !linkTitle.value) linkTitle.value = data.title;
-            if (data.thumbnail_url)  linkTitle.dataset.ogImage = data.thumbnail_url;
+            if (data.thumbnail_url)  { linkTitle.dataset.ogImage = data.thumbnail_url; foundImage = true; }
           } else {
             var html = data.contents || '';
             var doc  = new DOMParser().parseFromString(html, 'text/html');
@@ -430,13 +462,13 @@
             var i = meta('meta[property="og:image"]')       || meta('meta[name="twitter:image"]')       || '';
             if (t && !linkTitle.value) linkTitle.value = t;
             if (d && !linkDesc.value)  linkDesc.value  = d;
-            if (i) linkTitle.dataset.ogImage = i;
+            if (i) { linkTitle.dataset.ogImage = i; foundImage = true; }
           }
           if (domain) {
             linkTitle.dataset.domain  = domain;
             linkTitle.dataset.favicon = 'https://www.google.com/s2/favicons?domain=' + domain + '&sz=64';
           }
-          ogStatus.textContent = 'Metadata loaded.';
+          ogStatus.textContent = foundImage ? 'Metadata loaded.' : 'Metadata loaded \u2014 no preview image.';
           setTimeout(function () { ogStatus.textContent = ''; }, 2500);
         })
         .catch(function (err) {
@@ -597,8 +629,11 @@
       applyFilters();
       closeLinkModal();
 
-      persistToGitHub(entry, isEdit).catch(function (err) {
+      persistToGitHub(entry, isEdit).then(function () {
+        showToast('\u2713 Saved to GitHub', 'success');
+      }).catch(function (err) {
         console.error('[reading-list] GitHub save failed:', err.message);
+        showToast('\u2717 Save failed: ' + err.message, 'error');
       });
     }
 
@@ -728,6 +763,96 @@
     }
 
     function escAttr(str) { return escHtml(str); }
+
+    // ── PAT warning ──────────────────────────────────────────────
+    function updatePatWarning() {
+      if (patWarning) {
+        patWarning.style.display = getPat() ? 'none' : 'block';
+      }
+    }
+
+    // ── Toast ────────────────────────────────────────────────────
+    function showToast(msg, type) {
+      if (!persistToast) return;
+      persistToast.textContent = msg;
+      persistToast.className = 'persist-toast persist-toast--' + (type || 'info');
+      persistToast.removeAttribute('hidden');
+      clearTimeout(persistToast._timer);
+      persistToast._timer = setTimeout(function () {
+        persistToast.setAttribute('hidden', '');
+      }, type === 'error' ? 6000 : 3000);
+    }
+
+    // ── Category chips ───────────────────────────────────────────
+    function renderCategoryChips() {
+      if (!categoryChips) return;
+      categoryChips.innerHTML = '';
+      state.categories.forEach(function (cat) {
+        var chip = document.createElement('span');
+        chip.className = 'cat-chip';
+        chip.innerHTML = escHtml(cat) +
+          '<button type="button" aria-label="Remove ' + escAttr(cat) + '">\u00d7</button>';
+        chip.querySelector('button').addEventListener('click', function () {
+          state.categories = state.categories.filter(function (c) { return c !== cat; });
+          renderCategoryChips();
+          buildCategorySelect();
+          buildFilterTabs();
+          persistCategories();
+        });
+        categoryChips.appendChild(chip);
+      });
+    }
+
+    // ── Persist categories to GitHub ─────────────────────────────
+    function persistCategories() {
+      var pat = getPat();
+      if (!pat) {
+        categoryStatus.style.color = '#f85149';
+        categoryStatus.textContent = 'No PAT set \u2014 categories not saved to GitHub.';
+        return;
+      }
+      categoryStatus.style.color = 'var(--color-text-dim)';
+      categoryStatus.textContent = 'Saving\u2026';
+      var headers = {
+        'Authorization': 'token ' + pat,
+        'Accept':        'application/vnd.github.v3+json',
+        'Content-Type':  'application/json'
+      };
+      fetch(API_URL, { headers: headers })
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function (file) {
+          var sha     = file.sha;
+          var decoded = atob(file.content.replace(/\n/g, ''));
+          var data    = JSON.parse(decoded);
+          data.categories = state.categories;
+          var nc = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+          return fetch(API_URL, {
+            method:  'PUT',
+            headers: headers,
+            body:    JSON.stringify({
+              message: 'Update categories',
+              content: nc,
+              sha:     sha,
+              branch:  BRANCH
+            })
+          });
+        })
+        .then(function (r) {
+          if (!r.ok) {
+            return r.json().then(function (b) { throw new Error(b.message || 'PUT failed'); });
+          }
+          categoryStatus.style.color = 'var(--color-accent)';
+          categoryStatus.textContent = '\u2713 Categories saved.';
+          setTimeout(function () { categoryStatus.textContent = ''; }, 3000);
+        })
+        .catch(function (err) {
+          categoryStatus.style.color = '#f85149';
+          categoryStatus.textContent = '\u2717 Failed: ' + err.message;
+        });
+    }
 
     // ── Init ─────────────────────────────────────────────────────
     checkAdminSession();

@@ -153,6 +153,9 @@
   <!-- Settings panel -->
   <div class="settings-panel" id="settings-panel" aria-label="Admin settings">
     <p class="settings-panel-title">Admin Settings</p>
+    <div id="pat-warning" style="display:none;font-size:0.78rem;color:#f0883e;background:rgba(240,136,62,0.1);border:1px solid rgba(240,136,62,0.3);border-radius:6px;padding:0.5rem 0.75rem;margin-bottom:0.75rem;">
+      ⚠ No GitHub token set — saves will not persist.
+    </div>
     <div class="form-group">
       <label for="settings-pat">GitHub Personal Access Token</label>
       <input type="password" id="settings-pat" placeholder="ghp_…" autocomplete="off" />
@@ -160,6 +163,13 @@
         Stored in localStorage. Needs <code>contents: write</code> scope on chrislrose/test.
       </small>
     </div>
+    <p class="settings-panel-title" style="margin-top:1.25rem;">Categories</p>
+    <div id="category-chips" style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.6rem;min-height:1.5rem;"></div>
+    <div style="display:flex;gap:0.5rem;">
+      <input id="new-category-input" type="text" placeholder="New category…" autocomplete="off" style="flex:1;" />
+      <button class="btn" id="add-category-btn" style="white-space:nowrap;padding:0.45rem 0.75rem;font-size:0.8rem;">Add</button>
+    </div>
+    <div id="category-status" style="font-size:0.75rem;margin-top:0.4rem;min-height:1.2em;"></div>
     <p class="settings-panel-title" style="margin-top:1.25rem;">Bookmarklet</p>
     <p style="font-size:0.8rem;color:var(--color-text-muted);margin-bottom:0.75rem;">Drag to your bookmarks bar to quickly add any page:</p>
     <a id="bookmarklet-link" class="bookmarklet-link" href="#" title="Drag to bookmarks bar">+ Reading List</a>
@@ -251,6 +261,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Save-to-GitHub toast notification -->
+  <div id="persist-toast" hidden></div>
 
   <script src="animations.js" defer></script>
   <script src="theme.js" defer></script>
