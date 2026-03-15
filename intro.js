@@ -83,23 +83,17 @@
   // ── "hello" SVG path draw animation ────────────────────────
   function animateHelloPath(duration) {
     if (!helloSvg) return;
-    var paths = helloSvg.querySelectorAll('path');
-    paths.forEach(function (path) {
-      var len = path.getTotalLength();
-      path.style.strokeDasharray  = len;
-      path.style.strokeDashoffset = len;
-    });
+    var path = helloSvg.querySelector('path');
+    if (!path) return;
+    var len = path.getTotalLength();
+    path.style.strokeDasharray  = len;
+    path.style.strokeDashoffset = len;
 
     gsap.to(helloSvg, { opacity: 1, duration: 0.01 });
-    gsap.to(paths, {
+    gsap.to(path, {
       strokeDashoffset: 0,
-      duration: duration || 1.2,
-      ease: 'power2.inOut',
-      stagger: 0.15,
-      onComplete: function () {
-        // Fill in after drawing
-        gsap.to(paths, { fill: '#fff', duration: 0.4, ease: 'power1.in' });
-      }
+      duration: duration || 1.8,
+      ease: 'power2.inOut'
     });
   }
 
@@ -213,94 +207,95 @@
               if (pillBlue) pillBlue.classList.add('intro-pill--glow');
               setTimeout(function () { finishIntro('blue'); }, 700);
             }
-          }, 1800);
+          }, 2500);
         }
       }
     });
 
-    // Phase 1: Classic Mac boot (~0 – 2s)
+    // Phase 1: Classic Mac boot (~0 – 3s)
     // Happy Mac appears
     tl.to(happyMac, {
       opacity: 1,
-      duration: 0.5,
+      duration: 0.6,
       ease: 'power2.out'
-    }, 0.3);
+    }, 0.5);
 
     // Small scale-in bounce for Happy Mac
     tl.from(happyMac, {
       scale: 0.7,
-      duration: 0.6,
+      duration: 0.7,
       ease: 'back.out(1.7)'
-    }, 0.3);
+    }, 0.5);
 
-    // "hello" draws in
+    // "hello" draws in (starts at 1.2s, takes 1.8s to draw)
     tl.call(function () {
-      animateHelloPath(1.0);
-    }, null, 1.0);
+      animateHelloPath(1.8);
+    }, null, 1.2);
 
-    // Phase 2: Matrix wake-up (~2 – 3.5s)
+    // Show skip text
+    if (skipEl) {
+      tl.to(skipEl, { opacity: 1, duration: 0.3 }, 1.0);
+    }
+
+    // ── Pause: let "hello" breathe (~3.0 – 4.2s) ──────────
+
+    // Phase 2: Matrix wake-up (~4.2 – 6s)
     // Fade out Mac elements slightly and start transition
     tl.to([happyMac], {
       opacity: 0.2,
+      duration: 0.6,
+      ease: 'power1.in'
+    }, 4.2);
+
+    // Hello stroke turns green
+    tl.to(helloSvg ? helloSvg.querySelector('path') : [], {
+      stroke: '#00ff41',
       duration: 0.5,
       ease: 'power1.in'
-    }, 2.2);
-
-    // Hello fades to green tint
-    tl.to(helloSvg ? helloSvg.querySelectorAll('path') : [], {
-      stroke: '#00ff41',
-      fill: '#00ff41',
-      duration: 0.4,
-      ease: 'power1.in'
-    }, 2.2);
+    }, 4.2);
 
     // Subtle matrix rain starts in background
     tl.call(function () {
       if (matrixCanvas) {
         startIntroMatrix();
-        gsap.to(matrixCanvas, { opacity: 0.15, duration: 0.6 });
+        gsap.to(matrixCanvas, { opacity: 0.15, duration: 0.8 });
       }
-    }, null, 2.3);
+    }, null, 4.5);
 
     // Wake text types
     tl.call(function () {
-      typeText(wakeText, 'Wake up, Chris...', 55);
-    }, null, 2.5);
+      typeText(wakeText, 'Wake up, Chris...', 65);
+    }, null, 4.8);
 
-    // Phase 3: The Choice (~3.5 – 5s)
+    // Phase 3: The Choice (~6 – 7.5s)
     // Hello fades out
     tl.to(helloSvg, {
       opacity: 0,
       y: -20,
-      duration: 0.4,
+      duration: 0.5,
       ease: 'power1.in'
-    }, 3.5);
+    }, 6.0);
 
     // Happy Mac fades out
     tl.to(happyMac, {
       opacity: 0,
-      duration: 0.3,
-    }, 3.5);
+      duration: 0.4,
+    }, 6.0);
 
     // Pills appear
     tl.to(pills, {
       opacity: 1,
-      duration: 0.5,
+      duration: 0.6,
       ease: 'power2.out'
-    }, 3.8);
+    }, 6.5);
 
     tl.from(pills.children, {
       y: 20,
       opacity: 0,
-      duration: 0.45,
-      stagger: 0.15,
+      duration: 0.5,
+      stagger: 0.2,
       ease: 'power2.out'
-    }, 3.8);
-
-    // Show skip text
-    if (skipEl) {
-      tl.to(skipEl, { opacity: 1, duration: 0.3 }, 0.8);
-    }
+    }, 6.5);
   }
 
   // ── Init ───────────────────────────────────────────────────
