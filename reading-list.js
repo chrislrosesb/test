@@ -7,8 +7,8 @@
   'use strict';
 
   // ── Config ────────────────────────────────────────────────────
-  var REPO       = 'chrislrose/test';
-  var BRANCH     = 'main';
+  var REPO       = 'chrislrosesb/test';
+  var BRANCH     = 'Main';
   var RAW_BASE   = 'https://raw.githubusercontent.com/' + REPO + '/' + BRANCH + '/';
   var API_URL    = 'https://api.github.com/repos/' + REPO + '/contents/links.json';
   var ALLORIGINS = 'https://api.allorigins.win/get?url=';
@@ -334,7 +334,7 @@
           // Build bookmarklet href
           var bl = 'javascript:(function(){' +
             "var u=encodeURIComponent(location.href);" +
-            "window.open('https://chrislrose.github.io/test/reading-list.html?add='+u,'_blank');" +
+            "window.open('https://chrislrosesb.github.io/test/reading-list.html?add='+u,'_blank');" +
             '})();';
           bookmarklet.href = bl;
           settingsPanel.classList.add('open');

@@ -1,6 +1,6 @@
 /*!
  * github-feed.js — Live GitHub public activity feed
- * Fetches recent public events for chrislrose and renders them with a skeleton loader.
+ * Fetches recent public events for chrislrosesb and renders them with a skeleton loader.
  * Loaded only on index.html.
  */
 (function () {
@@ -9,7 +9,7 @@
   var feedEl = document.getElementById('github-feed');
   if (!feedEl) return;
 
-  var USERNAME = 'chrislrose';
+  var USERNAME = 'chrislrosesb';
   var API_URL  = 'https://api.github.com/users/' + USERNAME + '/events/public?per_page=30';
 
   // ── Helpers ──────────────────────────────────────────────────
