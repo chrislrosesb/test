@@ -642,6 +642,16 @@
       return localStorage.getItem('rl_pat') || '';
     }
 
+    function fetchCurrentFile(headers) {
+      var url = API_URL + '?ref=' + BRANCH + '&_t=' + Date.now();
+      return fetch(url, { headers: headers })
+        .then(function (r) {
+          if (r.status === 404) return null;
+          if (!r.ok) throw new Error('GET failed: HTTP ' + r.status);
+          return r.json();
+        });
+    }
+
     function persistToGitHub(entry, isEdit) {
       var pat = getPat();
       if (!pat) {
@@ -652,47 +662,53 @@
         'Accept':        'application/vnd.github.v3+json',
         'Content-Type':  'application/json'
       };
-      return fetch(API_URL + '?ref=' + BRANCH, { headers: headers })
-        .then(function (r) {
-          if (r.status === 404) return null; // file doesn't exist yet — will be created
-          if (!r.ok) throw new Error('GET failed: HTTP ' + r.status);
-          return r.json();
-        })
-        .then(function (file) {
-          var sha, data;
-          if (!file) {
-            sha  = null;
-            data = { categories: state.categories, links: [] };
-          } else {
-            sha     = file.sha;
-            var decoded = atob(file.content.replace(/\n/g, ''));
-            data    = JSON.parse(decoded);
-          }
-          if (isEdit) {
-            var i = data.links.findIndex(function (l) { return l.id === entry.id; });
-            if (i !== -1) { data.links[i] = entry; } else { data.links.unshift(entry); }
-          } else {
-            data.links.unshift(entry);
-          }
-          var newContent = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
-          var body = {
-            message: (isEdit ? 'Update' : 'Add') + ' link: ' + entry.title.slice(0, 60),
-            content: newContent,
-            branch:  BRANCH
-          };
-          if (sha) body.sha = sha;
-          return fetch(API_URL, {
-            method:  'PUT',
-            headers: headers,
-            body:    JSON.stringify(body)
+
+      function attemptWrite() {
+        return fetchCurrentFile(headers)
+          .then(function (file) {
+            var sha, data;
+            if (!file) {
+              sha  = null;
+              data = { categories: state.categories, links: [] };
+            } else {
+              sha     = file.sha;
+              var decoded = atob(file.content.replace(/\n/g, ''));
+              data    = JSON.parse(decoded);
+            }
+            if (isEdit) {
+              var i = data.links.findIndex(function (l) { return l.id === entry.id; });
+              if (i !== -1) { data.links[i] = entry; } else { data.links.unshift(entry); }
+            } else {
+              data.links.unshift(entry);
+            }
+            var newContent = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+            var body = {
+              message: (isEdit ? 'Update' : 'Add') + ' link: ' + entry.title.slice(0, 60),
+              content: newContent,
+              branch:  BRANCH
+            };
+            if (sha) body.sha = sha;
+            return fetch(API_URL, {
+              method:  'PUT',
+              headers: headers,
+              body:    JSON.stringify(body)
+            });
+          })
+          .then(function (r) {
+            if (!r.ok) {
+              return r.json().then(function (b) { throw new Error(b.message || 'PUT failed'); });
+            }
+            return r.json();
           });
-        })
-        .then(function (r) {
-          if (!r.ok) {
-            return r.json().then(function (b) { throw new Error(b.message || 'PUT failed'); });
-          }
-          return r.json();
-        });
+      }
+
+      return attemptWrite().catch(function (err) {
+        // Stale sha — re-fetch and retry once
+        if (err.message && err.message.indexOf('does not match') !== -1) {
+          return attemptWrite();
+        }
+        throw err;
+      });
     }
 
     // ── Delete ───────────────────────────────────────────────────
@@ -711,7 +727,7 @@
         'Accept':        'application/vnd.github.v3+json',
         'Content-Type':  'application/json'
       };
-      fetch(API_URL + '?ref=' + BRANCH, { headers: headers })
+      fetch(API_URL + '?ref=' + BRANCH + '&_t=' + Date.now(), { headers: headers })
         .then(function (r) { return r.json(); })
         .then(function (file) {
           var sha     = file.sha;
@@ -826,7 +842,7 @@
         'Accept':        'application/vnd.github.v3+json',
         'Content-Type':  'application/json'
       };
-      fetch(API_URL + '?ref=' + BRANCH, { headers: headers })
+      fetch(API_URL + '?ref=' + BRANCH + '&_t=' + Date.now(), { headers: headers })
         .then(function (r) {
           if (r.status === 404) return null; // file doesn't exist yet — will be created
           if (!r.ok) throw new Error('HTTP ' + r.status);
