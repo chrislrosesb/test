@@ -654,13 +654,20 @@
       };
       return fetch(API_URL, { headers: headers })
         .then(function (r) {
+          if (r.status === 404) return null; // file doesn't exist yet — will be created
           if (!r.ok) throw new Error('GET failed: HTTP ' + r.status);
           return r.json();
         })
         .then(function (file) {
-          var sha     = file.sha;
-          var decoded = atob(file.content.replace(/\n/g, ''));
-          var data    = JSON.parse(decoded);
+          var sha, data;
+          if (!file) {
+            sha  = null;
+            data = { categories: state.categories, links: [] };
+          } else {
+            sha     = file.sha;
+            var decoded = atob(file.content.replace(/\n/g, ''));
+            data    = JSON.parse(decoded);
+          }
           if (isEdit) {
             var i = data.links.findIndex(function (l) { return l.id === entry.id; });
             if (i !== -1) { data.links[i] = entry; } else { data.links.unshift(entry); }
@@ -668,15 +675,16 @@
             data.links.unshift(entry);
           }
           var newContent = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+          var body = {
+            message: (isEdit ? 'Update' : 'Add') + ' link: ' + entry.title.slice(0, 60),
+            content: newContent,
+            branch:  BRANCH
+          };
+          if (sha) body.sha = sha;
           return fetch(API_URL, {
             method:  'PUT',
             headers: headers,
-            body:    JSON.stringify({
-              message: (isEdit ? 'Update' : 'Add') + ' link: ' + entry.title.slice(0, 60),
-              content: newContent,
-              sha:     sha,
-              branch:  BRANCH
-            })
+            body:    JSON.stringify(body)
           });
         })
         .then(function (r) {
@@ -820,24 +828,32 @@
       };
       fetch(API_URL, { headers: headers })
         .then(function (r) {
+          if (r.status === 404) return null; // file doesn't exist yet — will be created
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.json();
         })
         .then(function (file) {
-          var sha     = file.sha;
-          var decoded = atob(file.content.replace(/\n/g, ''));
-          var data    = JSON.parse(decoded);
-          data.categories = state.categories;
+          var sha, data;
+          if (!file) {
+            sha  = null;
+            data = { categories: state.categories, links: [] };
+          } else {
+            sha     = file.sha;
+            var decoded = atob(file.content.replace(/\n/g, ''));
+            data    = JSON.parse(decoded);
+            data.categories = state.categories;
+          }
           var nc = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+          var body = {
+            message: 'Update categories',
+            content: nc,
+            branch:  BRANCH
+          };
+          if (sha) body.sha = sha;
           return fetch(API_URL, {
             method:  'PUT',
             headers: headers,
-            body:    JSON.stringify({
-              message: 'Update categories',
-              content: nc,
-              sha:     sha,
-              branch:  BRANCH
-            })
+            body:    JSON.stringify(body)
           });
         })
         .then(function (r) {
