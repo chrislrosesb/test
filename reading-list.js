@@ -20,7 +20,7 @@
   //     .then(b => Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join(''))
   //     .then(console.log)
   // Then paste the 64-character result here and redeploy.
-  var ADMIN_HASH = 'REPLACE_WITH_SHA256_HEX_OF_YOUR_PASSWORD';
+  var ADMIN_HASH = '48fb2e2c90a566e54c31b7adc296d375c04c96a71f98265f9b933cb03992ef48';
 
   // ── State ─────────────────────────────────────────────────────
   var state = {
