@@ -7,20 +7,13 @@
   'use strict';
 
   // ── Config ────────────────────────────────────────────────────
-  var REPO       = 'chrislrosesb/test';
-  var BRANCH     = 'Main';
-  var RAW_BASE   = 'https://raw.githubusercontent.com/' + REPO + '/' + BRANCH + '/';
-  var API_URL    = 'https://api.github.com/repos/' + REPO + '/contents/links.json';
+  // Fill in your Supabase project URL and anon key (Settings → API in Supabase dashboard)
+  var SUPABASE_URL  = 'https://YOUR_PROJECT_ID.supabase.co';
+  var SUPABASE_ANON = 'YOUR_ANON_KEY';
+  var db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
   var ALLORIGINS = 'https://api.allorigins.win/get?url=';
   var THREADS_OE = 'https://www.threads.net/api/oembed?url=';
-
-  // IMPORTANT: Replace this with the SHA-256 hex hash of your chosen admin password.
-  // To generate, open DevTools console and run:
-  //   crypto.subtle.digest('SHA-256', new TextEncoder().encode('yourpassword'))
-  //     .then(b => Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join(''))
-  //     .then(console.log)
-  // Then paste the 64-character result here and redeploy.
-  var ADMIN_HASH = '48fb2e2c90a566e54c31b7adc296d375c04c96a71f98265f9b933cb03992ef48';
 
   // ── State ─────────────────────────────────────────────────────
   var state = {
@@ -48,7 +41,6 @@
     var adminBadge    = document.getElementById('admin-badge');
     var adminAddBtn   = document.getElementById('admin-add-btn');
     var settingsPanel = document.getElementById('settings-panel');
-    var settingsPat   = document.getElementById('settings-pat');
     var settingsSave  = document.getElementById('settings-save-btn');
     var settingsLock  = document.getElementById('settings-lock-btn');
     var bookmarklet   = document.getElementById('bookmarklet-link');
@@ -56,11 +48,10 @@
     var authModal    = document.getElementById('auth-modal');
     var authBackdrop = document.getElementById('auth-modal-backdrop');
     var authClose    = document.getElementById('auth-modal-close');
+    var authEmail    = document.getElementById('admin-email');
     var authPassword = document.getElementById('admin-password');
     var authError    = document.getElementById('auth-error');
     var authSubmit   = document.getElementById('auth-submit-btn');
-
-    var patWarning       = document.getElementById('pat-warning');
     var categoryChips    = document.getElementById('category-chips');
     var newCategoryInput = document.getElementById('new-category-input');
     var addCategoryBtn   = document.getElementById('add-category-btn');
@@ -85,28 +76,27 @@
 
     // ── Load data ───────────────────────────────────────────────
     function loadData() {
-      var url = RAW_BASE + 'links.json?_=' + Date.now();
-      fetch(url)
-        .then(function (r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.json();
-        })
-        .then(function (data) {
-          state.categories = data.categories || [];
-          state.allLinks   = (data.links || []).filter(function (l) {
-            return state.isAdmin || !l.private;
-          });
-          buildFilterTabs();
-          buildCategorySelect();
-          applyFilters();
-        })
-        .catch(function (err) {
-          console.warn('[reading-list] load failed:', err.message);
-          linksGrid.innerHTML =
-            '<div class="links-empty">' +
-            '<p>Could not load the reading list. Please try again later.</p>' +
-            '</div>';
-        });
+      var linksQuery = db.from('links').select('*').order('saved_at', { ascending: false });
+      if (!state.isAdmin) linksQuery = linksQuery.eq('private', false);
+
+      Promise.all([
+        linksQuery,
+        db.from('categories').select('name, sort_order').order('sort_order')
+      ]).then(function (results) {
+        var linksRes = results[0], catsRes = results[1];
+        if (linksRes.error) throw linksRes.error;
+        state.allLinks   = linksRes.data || [];
+        state.categories = (catsRes.data || []).map(function (c) { return c.name; });
+        buildFilterTabs();
+        buildCategorySelect();
+        applyFilters();
+      }).catch(function (err) {
+        console.warn('[reading-list] load failed:', err.message);
+        linksGrid.innerHTML =
+          '<div class="links-empty">' +
+          '<p>Could not load the reading list. Please try again later.</p>' +
+          '</div>';
+      });
     }
 
     // ── Filters / sort / search ─────────────────────────────────
@@ -276,20 +266,12 @@
     }
 
     // ── Admin auth ───────────────────────────────────────────────
-    function checkAdminSession() {
-      if (sessionStorage.getItem('rl_admin') === '1') {
-        activateAdmin(false);
-      }
-    }
-
     function activateAdmin(reload) {
       state.isAdmin = true;
-      sessionStorage.setItem('rl_admin', '1');
       document.body.classList.add('admin-mode');
       adminFab.classList.add('unlocked');
       adminFab.setAttribute('aria-label', 'Admin settings');
       adminBadge.classList.add('visible');
-      // Switch to unlocked padlock icon
       adminFabIcon.innerHTML =
         '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>' +
         '<path d="M7 11V7a5 5 0 0 1 9.9-1"/>';
@@ -298,26 +280,16 @@
 
     function deactivateAdmin() {
       state.isAdmin = false;
-      sessionStorage.removeItem('rl_admin');
       document.body.classList.remove('admin-mode');
       adminFab.classList.remove('unlocked');
       adminFab.setAttribute('aria-label', 'Admin login');
       adminBadge.classList.remove('visible');
       settingsPanel.classList.remove('open');
-      // Restore locked padlock icon
       adminFabIcon.innerHTML =
         '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>' +
         '<path d="M7 11V7a5 5 0 0 1 10 0v4"/>';
+      db.auth.signOut();
       loadData();
-    }
-
-    function hashPassword(pw) {
-      return crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw))
-        .then(function (buf) {
-          return Array.from(new Uint8Array(buf))
-            .map(function (b) { return b.toString(16).padStart(2, '0'); })
-            .join('');
-        });
     }
 
     // ── Admin FAB ────────────────────────────────────────────────
@@ -328,8 +300,6 @@
         if (settingsPanel.classList.contains('open')) {
           settingsPanel.classList.remove('open');
         } else {
-          settingsPat.value = localStorage.getItem('rl_pat') || '';
-          updatePatWarning();
           renderCategoryChips();
           // Build bookmarklet href
           var bl = 'javascript:(function(){' +
@@ -345,9 +315,10 @@
     // ── Auth modal ───────────────────────────────────────────────
     function openAuthModal() {
       authModal.removeAttribute('hidden');
+      if (authEmail) authEmail.value = '';
       authPassword.value = '';
       authError.textContent = '';
-      setTimeout(function () { authPassword.focus(); }, 40);
+      setTimeout(function () { (authEmail || authPassword).focus(); }, 40);
     }
 
     function closeAuthModal() {
@@ -362,36 +333,30 @@
     authSubmit.addEventListener('click', submitAuth);
 
     function submitAuth() {
-      var pw = authPassword.value;
-      if (!pw) { authError.textContent = 'Please enter a password.'; return; }
+      var email = authEmail ? authEmail.value.trim() : '';
+      var pw    = authPassword.value;
+      if (!email || !pw) { authError.textContent = 'Please enter your email and password.'; return; }
       authError.textContent = '';
       authSubmit.disabled = true;
-      authSubmit.textContent = 'Checking\u2026';
+      authSubmit.textContent = 'Signing in\u2026';
 
-      hashPassword(pw).then(function (hex) {
-        authSubmit.disabled = false;
-        authSubmit.textContent = 'Unlock';
-        if (hex === ADMIN_HASH) {
-          closeAuthModal();
-          activateAdmin(true);
-        } else {
-          authError.textContent = 'Incorrect password.';
-          authPassword.value = '';
-          authPassword.focus();
-        }
-      }).catch(function () {
-        authSubmit.disabled = false;
-        authSubmit.textContent = 'Unlock';
-        authError.textContent = 'Crypto API unavailable. Try a modern browser.';
-      });
+      db.auth.signInWithPassword({ email: email, password: pw })
+        .then(function (res) {
+          authSubmit.disabled = false;
+          authSubmit.textContent = 'Unlock';
+          if (res.error) {
+            authError.textContent = res.error.message;
+            authPassword.value = '';
+            authPassword.focus();
+          } else {
+            closeAuthModal();
+            activateAdmin(true);
+          }
+        });
     }
 
     // ── Settings panel ───────────────────────────────────────────
     settingsSave.addEventListener('click', function () {
-      var pat = settingsPat.value.trim();
-      if (pat) { localStorage.setItem('rl_pat', pat); }
-      else      { localStorage.removeItem('rl_pat'); }
-      updatePatWarning();
       settingsPanel.classList.remove('open');
     });
 
@@ -629,85 +594,21 @@
       applyFilters();
       closeLinkModal();
 
-      persistToGitHub(entry, isEdit).then(function () {
-        showToast('\u2713 Saved to GitHub', 'success');
+      persistToSupabase(entry, isEdit).then(function () {
+        showToast('\u2713 Saved', 'success');
       }).catch(function (err) {
-        console.error('[reading-list] GitHub save failed:', err.message);
+        console.error('[reading-list] save failed:', err.message);
         showToast('\u2717 Save failed: ' + err.message, 'error');
       });
     }
 
-    // ── GitHub Contents API: read-modify-write ───────────────────
-    function getPat() {
-      return localStorage.getItem('rl_pat') || '';
-    }
-
-    function fetchCurrentFile(headers) {
-      var url = API_URL + '?ref=' + BRANCH + '&_t=' + Date.now();
-      return fetch(url, { headers: headers })
-        .then(function (r) {
-          if (r.status === 404) return null;
-          if (!r.ok) throw new Error('GET failed: HTTP ' + r.status);
-          return r.json();
-        });
-    }
-
-    function persistToGitHub(entry, isEdit) {
-      var pat = getPat();
-      if (!pat) {
-        return Promise.reject(new Error('No PAT. Open the admin settings panel and add your GitHub token.'));
-      }
-      var headers = {
-        'Authorization': 'token ' + pat,
-        'Accept':        'application/vnd.github.v3+json',
-        'Content-Type':  'application/json'
-      };
-
-      function attemptWrite() {
-        return fetchCurrentFile(headers)
-          .then(function (file) {
-            var sha, data;
-            if (!file) {
-              sha  = null;
-              data = { categories: state.categories, links: [] };
-            } else {
-              sha     = file.sha;
-              var decoded = atob(file.content.replace(/\n/g, ''));
-              data    = JSON.parse(decoded);
-            }
-            if (isEdit) {
-              var i = data.links.findIndex(function (l) { return l.id === entry.id; });
-              if (i !== -1) { data.links[i] = entry; } else { data.links.unshift(entry); }
-            } else {
-              data.links.unshift(entry);
-            }
-            var newContent = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
-            var body = {
-              message: (isEdit ? 'Update' : 'Add') + ' link: ' + entry.title.slice(0, 60),
-              content: newContent,
-              branch:  BRANCH
-            };
-            if (sha) body.sha = sha;
-            return fetch(API_URL, {
-              method:  'PUT',
-              headers: headers,
-              body:    JSON.stringify(body)
-            });
-          })
-          .then(function (r) {
-            if (!r.ok) {
-              return r.json().then(function (b) { throw new Error(b.message || 'PUT failed'); });
-            }
-            return r.json();
-          });
-      }
-
-      return attemptWrite().catch(function (err) {
-        // Stale sha — re-fetch and retry once
-        if (err.message && err.message.indexOf('does not match') !== -1) {
-          return attemptWrite();
-        }
-        throw err;
+    // ── Supabase write ───────────────────────────────────────────
+    function persistToSupabase(entry, isEdit) {
+      var op = isEdit
+        ? db.from('links').update(entry).eq('id', entry.id)
+        : db.from('links').insert(entry);
+      return op.then(function (res) {
+        if (res.error) throw new Error(res.error.message);
       });
     }
 
@@ -720,35 +621,9 @@
       state.allLinks = state.allLinks.filter(function (l) { return l.id !== id; });
       applyFilters();
 
-      var pat = getPat();
-      if (!pat) return;
-      var headers = {
-        'Authorization': 'token ' + pat,
-        'Accept':        'application/vnd.github.v3+json',
-        'Content-Type':  'application/json'
-      };
-      fetch(API_URL + '?ref=' + BRANCH + '&_t=' + Date.now(), { headers: headers })
-        .then(function (r) { return r.json(); })
-        .then(function (file) {
-          var sha     = file.sha;
-          var decoded = atob(file.content.replace(/\n/g, ''));
-          var data    = JSON.parse(decoded);
-          data.links  = data.links.filter(function (l) { return l.id !== id; });
-          var nc = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
-          return fetch(API_URL, {
-            method:  'PUT',
-            headers: headers,
-            body:    JSON.stringify({
-              message: 'Remove link: ' + link.title.slice(0, 60),
-              content: nc,
-              sha:     sha,
-              branch:  BRANCH
-            })
-          });
-        })
-        .catch(function (err) {
-          console.error('[reading-list] Delete failed:', err.message);
-        });
+      db.from('links').delete().eq('id', id).then(function (res) {
+        if (res.error) console.error('[reading-list] Delete failed:', res.error.message);
+      });
     }
 
     // ── Bookmarklet ?add= param ──────────────────────────────────
@@ -788,13 +663,6 @@
 
     function escAttr(str) { return escHtml(str); }
 
-    // ── PAT warning ──────────────────────────────────────────────
-    function updatePatWarning() {
-      if (patWarning) {
-        patWarning.style.display = getPat() ? 'none' : 'block';
-      }
-    }
-
     // ── Toast ────────────────────────────────────────────────────
     function showToast(msg, type) {
       if (!persistToast) return;
@@ -827,69 +695,36 @@
       });
     }
 
-    // ── Persist categories to GitHub ─────────────────────────────
+    // ── Persist categories to Supabase ───────────────────────────
     function persistCategories() {
-      var pat = getPat();
-      if (!pat) {
-        categoryStatus.style.color = '#f85149';
-        categoryStatus.textContent = 'No PAT set \u2014 categories not saved to GitHub.';
-        return;
-      }
       categoryStatus.style.color = 'var(--color-text-dim)';
       categoryStatus.textContent = 'Saving\u2026';
-      var headers = {
-        'Authorization': 'token ' + pat,
-        'Accept':        'application/vnd.github.v3+json',
-        'Content-Type':  'application/json'
-      };
-      fetch(API_URL + '?ref=' + BRANCH + '&_t=' + Date.now(), { headers: headers })
-        .then(function (r) {
-          if (r.status === 404) return null; // file doesn't exist yet — will be created
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.json();
-        })
-        .then(function (file) {
-          var sha, data;
-          if (!file) {
-            sha  = null;
-            data = { categories: state.categories, links: [] };
-          } else {
-            sha     = file.sha;
-            var decoded = atob(file.content.replace(/\n/g, ''));
-            data    = JSON.parse(decoded);
-            data.categories = state.categories;
-          }
-          var nc = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
-          var body = {
-            message: 'Update categories',
-            content: nc,
-            branch:  BRANCH
-          };
-          if (sha) body.sha = sha;
-          return fetch(API_URL, {
-            method:  'PUT',
-            headers: headers,
-            body:    JSON.stringify(body)
-          });
-        })
-        .then(function (r) {
-          if (!r.ok) {
-            return r.json().then(function (b) { throw new Error(b.message || 'PUT failed'); });
-          }
+      var rows = state.categories.map(function (name, i) {
+        return { name: name, sort_order: i };
+      });
+      db.from('categories').delete().neq('name', '').then(function () {
+        return db.from('categories').insert(rows);
+      }).then(function (res) {
+        if (res.error) {
+          categoryStatus.style.color = '#f85149';
+          categoryStatus.textContent = '\u2717 Failed: ' + res.error.message;
+        } else {
           categoryStatus.style.color = 'var(--color-accent)';
           categoryStatus.textContent = '\u2713 Categories saved.';
           setTimeout(function () { categoryStatus.textContent = ''; }, 3000);
-        })
-        .catch(function (err) {
-          categoryStatus.style.color = '#f85149';
-          categoryStatus.textContent = '\u2717 Failed: ' + err.message;
-        });
+        }
+      });
     }
 
     // ── Init ─────────────────────────────────────────────────────
-    checkAdminSession();
     loadData();
     checkAddParam();
+    // Restore admin session if Supabase still has a valid token
+    db.auth.getSession().then(function (res) {
+      if (res.data && res.data.session) {
+        activateAdmin(true);
+      }
+    });
 
   }); // end DOMContentLoaded
 
