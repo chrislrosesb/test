@@ -11,10 +11,85 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="intro.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 </head>
-<body>
+<body class="intro-active">
+
+  <!-- ═══════════════════════════════════════════════════════════
+       INTRO OVERLAY — Classic Mac '84 + Matrix pill choice
+       ═══════════════════════════════════════════════════════════ -->
+  <div id="intro-overlay">
+    <!-- Matrix rain canvas (background layer) -->
+    <canvas id="intro-matrix-canvas"></canvas>
+
+    <!-- Glitch flash layer -->
+    <div class="intro-glitch-flash"></div>
+
+    <!-- Happy Mac pixel art (SVG) -->
+    <div class="intro-happy-mac">
+      <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+        <!-- Classic Happy Mac icon – pixel-art style -->
+        <rect x="8" y="2" width="16" height="22" rx="2" fill="#fff"/>
+        <!-- Screen -->
+        <rect x="10" y="4" width="12" height="12" fill="#000"/>
+        <!-- Eyes -->
+        <rect x="12" y="7" width="2" height="2" fill="#fff"/>
+        <rect x="18" y="7" width="2" height="2" fill="#fff"/>
+        <!-- Nose -->
+        <rect x="15" y="10" width="2" height="1" fill="#fff"/>
+        <!-- Smile -->
+        <rect x="12" y="12" width="2" height="1" fill="#fff"/>
+        <rect x="13" y="13" width="6" height="1" fill="#fff"/>
+        <rect x="18" y="12" width="2" height="1" fill="#fff"/>
+        <!-- Base -->
+        <rect x="10" y="18" width="12" height="2" fill="#ccc"/>
+        <!-- Floppy slot -->
+        <rect x="13" y="19" width="6" height="1" fill="#999"/>
+        <!-- Stand base -->
+        <rect x="11" y="24" width="10" height="2" rx="1" fill="#ddd"/>
+        <rect x="14" y="22" width="4" height="2" fill="#ccc"/>
+      </svg>
+    </div>
+
+    <!-- "hello" in classic Mac cursive (SVG path for drawing animation) -->
+    <svg class="intro-hello-svg" viewBox="0 0 480 140" xmlns="http://www.w3.org/2000/svg">
+      <!-- Flowing cursive "hello" inspired by the 1984 Macintosh -->
+      <!-- h -->
+      <path d="M40 110 C40 110 40 25 42 20 C44 18 44 25 44 35
+               C44 55 42 70 50 70 C60 70 68 50 70 45
+               C72 40 74 38 74 42 C74 55 72 90 74 105 C74 110 76 112 76 110" />
+      <!-- e -->
+      <path d="M95 65 C85 60 80 68 80 78 C80 92 88 98 100 93
+               C105 90 102 85 95 65 Z" />
+      <!-- l -->
+      <path d="M118 20 C116 22 118 60 120 85 C122 100 124 108 124 105" />
+      <!-- l -->
+      <path d="M142 20 C140 22 142 60 144 85 C146 100 148 108 148 105" />
+      <!-- o -->
+      <path d="M170 65 C160 65 155 75 158 88 C162 100 175 102 182 92
+               C188 82 185 65 175 62 C170 60 165 63 170 65 Z" />
+    </svg>
+
+    <!-- Matrix wake-up text -->
+    <div class="intro-wake-text"></div>
+
+    <!-- Red pill / Blue pill choice -->
+    <div class="intro-pills">
+      <button class="intro-pill intro-pill--red" type="button">
+        <span class="intro-pill-circle"></span>
+        Stay in the Matrix
+      </button>
+      <button class="intro-pill intro-pill--blue" type="button">
+        <span class="intro-pill-circle"></span>
+        Enter the site
+      </button>
+    </div>
+
+    <!-- Skip prompt -->
+    <div class="intro-skip">Press any key to skip</div>
+  </div>
 
   <!-- Navigation -->
   <nav>
@@ -214,6 +289,7 @@
     </div>
   </div>
 
+  <script src="intro.js" defer></script>
   <script src="animations.js" defer></script>
   <script src="theme.js" defer></script>
   <script src="particles.js" defer></script>

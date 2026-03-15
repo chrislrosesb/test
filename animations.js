@@ -162,7 +162,17 @@
     }
   }
 
-  window.addEventListener('load', initHeroAnimation);
+  // If intro is active, wait for it to finish before running hero animation.
+  // Otherwise (other pages, or intro already done), run on load as normal.
+  if (window.introComplete) {
+    initHeroAnimation();
+  } else if (document.getElementById('intro-overlay') && !document.getElementById('intro-overlay').classList.contains('intro-hidden')) {
+    window.addEventListener('intro-done', function () {
+      initHeroAnimation();
+    }, { once: true });
+  } else {
+    window.addEventListener('load', initHeroAnimation);
+  }
 
   /* ── Helper: run fn when DOM is ready ──────────────────────── */
   function onReady(fn) {
@@ -229,7 +239,17 @@
     }
     setTimeout(tick, 1300);
   }
-  initTypewriter();
+
+  // Delay typewriter start until after intro (if present)
+  if (window.introComplete) {
+    initTypewriter();
+  } else if (document.getElementById('intro-overlay') && !document.getElementById('intro-overlay').classList.contains('intro-hidden')) {
+    window.addEventListener('intro-done', function () {
+      initTypewriter();
+    }, { once: true });
+  } else {
+    initTypewriter();
+  }
 
   /* ── 3d. Page transitions ────────────────────────────────────── */
   function initPageTransitions() {
