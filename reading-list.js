@@ -13,7 +13,6 @@
   var db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
   var MICROLINK  = 'https://api.microlink.io?url=';
-  var THREADS_OE = 'https://www.threads.net/api/oembed?url=';
 
   // ── State ─────────────────────────────────────────────────────
   var state = {
@@ -399,31 +398,6 @@
       ogStatus.textContent = 'Fetching metadata\u2026';
       var domain = '';
       try { domain = new URL(url).hostname.replace(/^www\./, ''); } catch (e) {}
-
-      var isThreads = domain.indexOf('threads.net') !== -1;
-
-      if (isThreads) {
-        fetch(THREADS_OE + encodeURIComponent(url))
-          .then(function (r) {
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            return r.json();
-          })
-          .then(function (data) {
-            if (data.title && !linkTitle.value) linkTitle.value = data.title;
-            if (data.thumbnail_url) linkTitle.dataset.ogImage = data.thumbnail_url;
-            if (domain) {
-              linkTitle.dataset.domain  = domain;
-              linkTitle.dataset.favicon = 'https://www.google.com/s2/favicons?domain=' + domain + '&sz=64';
-            }
-            ogStatus.textContent = data.thumbnail_url ? 'Metadata loaded.' : 'Metadata loaded \u2014 no preview image.';
-            setTimeout(function () { ogStatus.textContent = ''; }, 2500);
-          })
-          .catch(function (err) {
-            console.warn('[reading-list] Threads OG fetch failed:', err.message);
-            ogStatus.textContent = 'Could not fetch metadata \u2014 fill in manually.';
-          });
-        return;
-      }
 
       fetch(MICROLINK + encodeURIComponent(url))
         .then(function (r) {
