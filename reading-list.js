@@ -729,8 +729,8 @@
     var pendingAddUrl = null;
 
     function checkAddParam() {
-      var params = new URLSearchParams(window.location.search);
-      var addUrl = params.get('add');
+      var search = window.location.search;
+      var addUrl = search.startsWith('?add=') ? search.slice(5) : null;
       if (!addUrl) return;
       window.history.replaceState({}, '', window.location.pathname);
       if (state.isAdmin) {
