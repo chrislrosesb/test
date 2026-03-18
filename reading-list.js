@@ -20,6 +20,7 @@
     categories:     [],
     filtered:       [],
     activeCategory: 'All',
+    activeStatus:   'all',   // 'all' | 'unread'
     activeSort:     'newest',
     searchQuery:    '',
     isAdmin:        false,
@@ -39,6 +40,7 @@
     var adminFabIcon  = document.getElementById('admin-fab-icon');
     var adminBadge    = document.getElementById('admin-badge');
     var adminAddBtn   = document.getElementById('admin-add-btn');
+    var filterShuffle = document.getElementById('filter-shuffle-btn');
     var settingsPanel = document.getElementById('settings-panel');
     var settingsSave  = document.getElementById('settings-save-btn');
     var settingsLock  = document.getElementById('settings-lock-btn');
@@ -69,6 +71,7 @@
     var linkNote       = document.getElementById('link-note');
     var linkCategory   = document.getElementById('link-category');
     var starPicker     = document.getElementById('star-picker');
+    var linkUnread     = document.getElementById('link-unread');
     var linkPrivate    = document.getElementById('link-private');
     var linkSaveStatus = document.getElementById('link-save-status');
     var linkModalSave  = document.getElementById('link-modal-save');
@@ -77,6 +80,10 @@
     function loadData() {
       var linksQuery = db.from('links').select('*').order('saved_at', { ascending: false });
       if (!state.isAdmin) linksQuery = linksQuery.eq('private', false);
+
+      // Pre-select category from URL param (for shareable collection links)
+      var urlCat = new URLSearchParams(window.location.search).get('category');
+      if (urlCat) state.activeCategory = urlCat;
 
       Promise.all([
         linksQuery,
@@ -104,6 +111,10 @@
 
       if (state.activeCategory !== 'All') {
         links = links.filter(function (l) { return l.category === state.activeCategory; });
+      }
+
+      if (state.activeStatus === 'unread') {
+        links = links.filter(function (l) { return l.read === false; });
       }
 
       var q = state.searchQuery.toLowerCase().trim();
@@ -144,6 +155,25 @@
     // ── Filter tabs ─────────────────────────────────────────────
     function buildFilterTabs() {
       filterTabs.innerHTML = '';
+
+      // Unread toggle tab
+      var unreadCount = state.allLinks.filter(function (l) { return l.read === false; }).length;
+      var unreadBtn = document.createElement('button');
+      unreadBtn.className = 'filter-tab filter-tab-unread' + (state.activeStatus === 'unread' ? ' active' : '');
+      unreadBtn.innerHTML = (unreadCount > 0 ? '<span class="filter-unread-dot"></span>' : '') + 'Unread' + (unreadCount > 0 ? ' <span class="filter-unread-count">' + unreadCount + '</span>' : '');
+      unreadBtn.addEventListener('click', function () {
+        state.activeStatus = state.activeStatus === 'unread' ? 'all' : 'unread';
+        buildFilterTabs();
+        applyFilters();
+      });
+      filterTabs.appendChild(unreadBtn);
+
+      // Separator
+      var sep = document.createElement('span');
+      sep.className = 'filter-tab-sep';
+      filterTabs.appendChild(sep);
+
+      // Category tabs
       var cats = ['All'].concat(state.categories);
       cats.forEach(function (cat) {
         var btn = document.createElement('button');
@@ -151,14 +181,30 @@
         btn.textContent = cat;
         btn.addEventListener('click', function () {
           state.activeCategory = cat;
-          filterTabs.querySelectorAll('.filter-tab').forEach(function (t) {
+          filterTabs.querySelectorAll('.filter-tab:not(.filter-tab-unread)').forEach(function (t) {
             t.classList.toggle('active', t.textContent === cat);
           });
+          // Sync URL so the link is shareable
+          var url = new URL(window.location.href);
+          if (cat === 'All') { url.searchParams.delete('category'); }
+          else { url.searchParams.set('category', cat); }
+          window.history.replaceState({}, '', url.toString());
           applyFilters();
         });
         filterTabs.appendChild(btn);
       });
     }
+
+    // ── Shuffle ──────────────────────────────────────────────────
+    filterShuffle.addEventListener('click', function () {
+      if (!state.filtered.length) return;
+      var pick = state.filtered[Math.floor(Math.random() * state.filtered.length)];
+      var card = document.querySelector('.link-card[data-id="' + pick.id + '"]');
+      if (!card) return;
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('card-shuffle-highlight');
+      setTimeout(function () { card.classList.remove('card-shuffle-highlight'); }, 1800);
+    });
 
     // ── Render grid ─────────────────────────────────────────────
     function renderGrid() {
@@ -232,11 +278,21 @@
         } catch (e) {}
       }
 
+      var unreadBadge = (link.read === false)
+        ? '<span class="link-card-unread-badge">Unread</span>'
+        : '';
+      var readToggleBtn = state.isAdmin
+        ? '<button class="link-card-action-btn read-toggle" data-id="' + escAttr(link.id) + '" aria-label="' + (link.read === false ? 'Mark as read' : 'Mark as unread') + '" title="' + (link.read === false ? 'Mark as read' : 'Mark as unread') + '">' + (link.read === false ? '&#10003;' : '&#9675;') + '</button>'
+        : '';
+
       card.innerHTML =
         '<div class="link-card-actions">' +
+          '<button class="link-card-action-btn copy" data-id="' + escAttr(link.id) + '" data-url="' + escAttr(link.url) + '" aria-label="Copy link">&#128279;</button>' +
+          readToggleBtn +
           '<button class="link-card-action-btn edit" data-id="' + escAttr(link.id) + '" aria-label="Edit link">&#9998;</button>' +
           '<button class="link-card-action-btn delete" data-id="' + escAttr(link.id) + '" aria-label="Delete link">&times;</button>' +
         '</div>' +
+        unreadBadge +
         '<a href="' + escAttr(link.url) + '" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true" style="display:block;text-decoration:none;">' +
           imgHtml +
         '</a>' +
@@ -256,6 +312,24 @@
             (dateStr ? '<span class="link-card-date">' + escHtml(dateStr) + '</span>' : '') +
           '</div>' +
         '</div>';
+
+      card.querySelector('.link-card-action-btn.copy').addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        navigator.clipboard.writeText(link.url).then(function () {
+          showToast('Link copied to clipboard', 'success');
+        }).catch(function () {
+          showToast('Could not copy — try manually', 'error');
+        });
+      });
+
+      if (state.isAdmin) {
+        card.querySelector('.link-card-action-btn.read-toggle').addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleRead(link.id);
+        });
+      }
 
       card.querySelector('.link-card-action-btn.edit').addEventListener('click', function (e) {
         e.preventDefault();
@@ -549,6 +623,7 @@
       linkTitle.dataset.favicon = '';
       linkDesc.value   = '';
       linkNote.value   = '';
+      linkUnread.checked  = false;
       linkPrivate.checked = false;
       linkSaveStatus.textContent = '';
       ogStatus.textContent = '';
@@ -573,6 +648,7 @@
       linkTitle.dataset.favicon = link.favicon || '';
       linkDesc.value   = link.description || '';
       linkNote.value   = link.note        || '';
+      linkUnread.checked  = link.read === false;
       linkPrivate.checked = !!link.private;
       linkSaveStatus.textContent = '';
       ogStatus.textContent = '';
@@ -670,6 +746,7 @@
         category:    linkCategory.value,
         stars:       state.starValue,
         note:        linkNote.value.trim(),
+        read:        !linkUnread.checked,
         private:     linkPrivate.checked,
         saved_at:    isEdit && orig ? orig.saved_at : now
       };
@@ -717,6 +794,24 @@
 
       db.from('links').delete().eq('id', id).then(function (res) {
         if (res.error) console.error('[reading-list] Delete failed:', res.error.message);
+      });
+    }
+
+    // ── Toggle read status ───────────────────────────────────────
+    function toggleRead(id) {
+      var link = state.allLinks.find(function (l) { return l.id === id; });
+      if (!link) return;
+      var newRead = !(link.read === false); // false→true, true/null/undefined→false
+      link.read = newRead;
+      applyFilters();
+      db.from('links').update({ read: newRead }).eq('id', id).then(function (res) {
+        if (res.error) {
+          console.error('[reading-list] read toggle failed:', res.error.message);
+          link.read = !newRead; // revert
+          applyFilters();
+        } else {
+          buildFilterTabs(); // refresh unread count badge
+        }
       });
     }
 
