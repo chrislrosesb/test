@@ -458,6 +458,11 @@
           } else {
             closeAuthModal();
             activateAdmin(true);
+            if (pendingAddUrl) {
+              var url = pendingAddUrl;
+              pendingAddUrl = null;
+              setTimeout(function () { openAddModal(url); }, 100);
+            }
           }
         });
     }
@@ -720,12 +725,18 @@
     }
 
     // ── Bookmarklet ?add= param ──────────────────────────────────
+    var pendingAddUrl = null;
+
     function checkAddParam() {
       var params = new URLSearchParams(window.location.search);
       var addUrl = params.get('add');
-      if (addUrl && state.isAdmin) {
-        openAddModal(decodeURIComponent(addUrl));
-        window.history.replaceState({}, '', window.location.pathname);
+      if (!addUrl) return;
+      window.history.replaceState({}, '', window.location.pathname);
+      if (state.isAdmin) {
+        openAddModal(addUrl);
+      } else {
+        pendingAddUrl = addUrl;
+        openAuthModal();
       }
     }
 
