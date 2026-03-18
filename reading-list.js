@@ -592,6 +592,7 @@
     function closeLinkModal() {
       linkModal.setAttribute('hidden', '');
       state.editingId = null;
+      linkModalSave.disabled = false;
     }
 
     linkModalClose.addEventListener('click', closeLinkModal);
