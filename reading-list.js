@@ -193,15 +193,23 @@
       card.className = 'link-card anim-fade-up';
       card.dataset.id = link.id;
 
-      // Image — always show something, never blank
+      // Image — three cases: OG image, known brand, or blur-backdrop
       var imgHtml;
-      var placeholderSrc = generatePlaceholderSvg(link.category, link.domain);
+      var brandSvg = generatePlaceholderSvg(link.category, link.domain);
       if (link.image) {
+        var fallbackSrc = brandSvg || generateFallbackSvg(link.domain);
         imgHtml =
           '<img class="link-card-image" src="' + escAttr(link.image) + '" alt="" loading="lazy" ' +
-          'onerror="this.onerror=null;this.src=\'' + escAttr(placeholderSrc) + '\';" />';
+          'onerror="this.onerror=null;this.src=\'' + escAttr(fallbackSrc) + '\';" />';
+      } else if (brandSvg) {
+        imgHtml = '<img class="link-card-image" src="' + escAttr(brandSvg) + '" alt="" loading="lazy" />';
       } else {
-        imgHtml = '<img class="link-card-image" src="' + escAttr(placeholderSrc) + '" alt="" loading="lazy" />';
+        var fav = link.favicon || ('https://www.google.com/s2/favicons?domain=' + escAttr(link.domain || '') + '&sz=64');
+        imgHtml =
+          '<div class="link-card-placeholder" style="--fav-url: url(\'' + escAttr(fav) + '\')">' +
+            '<img class="link-card-placeholder-favicon" src="' + escAttr(fav) + '" alt="" loading="lazy" ' +
+            'onerror="this.style.display=\'none\'">' +
+          '</div>';
       }
 
       // Stars
@@ -264,108 +272,61 @@
       return '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
     }
 
-    // ── Category + Source placeholder generator ────────────────
-    var categoryThemes = {
-      'Tech':       { bg: '#1e3a5f', accent: '#3b82f6', icon: 'M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z' },
-      'Design':     { bg: '#3b1f5e', accent: '#a855f7', icon: 'M12 19l9 2-9-18-9 18 9-2zm0 0v-8' },
-      'Long Reads': { bg: '#5c3d1e', accent: '#f59e0b', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
-      'Politics':   { bg: '#5e1e2e', accent: '#ef4444', icon: 'M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 9h.01M15 9h.01M9 13h.01M15 13h.01' },
-      'Business':   { bg: '#1e4d3a', accent: '#10b981', icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6' }
-    };
-    var defaultTheme = { bg: '#2d333b', accent: '#768390', icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1' };
-
-    // Source logo SVG paths (simplified recognizable marks)
+    // ── Source placeholder generator ───────────────────────────
+    // Source logo SVG paths + brand colors
     var sourceLogos = {
-      'threads.net':  { path: 'M16.5 8.3c-.2-.1-.4-.2-.6-.3-1.3-.7-2.9-.9-4.2-.4-1.5.5-2.5 1.7-2.9 3.2-.3 1.2-.1 2.5.5 3.5.7 1.2 2 2 3.4 2.1 1.2.1 2.4-.3 3.3-1.1.8-.7 1.3-1.7 1.4-2.8.1-.8 0-1.6-.3-2.3-.2-.4-.4-.7-.6-.9m-.6-.3c1.5.8 2.5 2.3 2.6 4 .1 2.2-.9 4.1-2.7 5.2-1.5.9-3.3 1.1-5 .6-2-.6-3.5-2.1-4.2-4-.6-1.7-.5-3.6.3-5.2.9-1.8 2.6-3 4.6-3.4 1.5-.3 3.1 0 4.4.8', viewBox: '0 0 24 24' },
-      'reddit.com':   { path: 'M12 8c2.6 0 5 1.2 5 3.5S14.6 15 12 15s-5-1.2-5-3.5S9.4 8 12 8zm-2.5 4a.75.75 0 100-1.5.75.75 0 000 1.5zm5 0a.75.75 0 100-1.5.75.75 0 000 1.5zM12 14c-1 0-1.8-.3-2.2-.7a.4.4 0 01.5-.5c.4.3 1 .5 1.7.5s1.3-.2 1.7-.5a.4.4 0 01.5.5c-.4.4-1.2.7-2.2.7zM18.8 9.2a1.6 1.6 0 11-2.3 2.2M5.2 9.2a1.6 1.6 0 102.3 2.2M16 6.5l-1-3.5h-2l1.5 4M12 3a9 9 0 100 18 9 9 0 000-18z', viewBox: '0 0 24 24' },
-      'x.com':        { path: 'M4 4l6.5 8.5L4 20h2l5.5-6.3L16 20h5l-7-9 6-7h-2l-5 5.7L9 4H4z', viewBox: '0 0 24 24' },
-      'twitter.com':  { path: 'M4 4l6.5 8.5L4 20h2l5.5-6.3L16 20h5l-7-9 6-7h-2l-5 5.7L9 4H4z', viewBox: '0 0 24 24' },
-      'github.com':   { path: 'M12 2C6.477 2 2 6.477 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.1.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.56 9.56 0 0112 6.8c.85.004 1.7.114 2.5.336 1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.69 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.16.59.67.5A10.003 10.003 0 0022 12c0-5.523-4.477-10-10-10z', viewBox: '0 0 24 24' },
-      'youtube.com':  { path: 'M19.6 3.2H4.4A2.4 2.4 0 002 5.6v8.8a2.4 2.4 0 002.4 2.4h15.2a2.4 2.4 0 002.4-2.4V5.6a2.4 2.4 0 00-2.4-2.4zM10 14V6l6 4-6 4z', viewBox: '0 0 24 20' },
-      'medium.com':   { path: 'M13.5 12a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0zm7.1 0c0 3.4-1.5 6.1-3.3 6.1S14 15.4 14 12s1.5-6.1 3.3-6.1 3.3 2.7 3.3 6.1zm3.4 0c0 3-.5 5.5-1.2 5.5S21.6 15 21.6 12s.5-5.5 1.2-5.5 1.2 2.5 1.2 5.5z', viewBox: '0 0 24 24' }
+      'threads.net':          { path: 'M16.5 8.3c-.2-.1-.4-.2-.6-.3-1.3-.7-2.9-.9-4.2-.4-1.5.5-2.5 1.7-2.9 3.2-.3 1.2-.1 2.5.5 3.5.7 1.2 2 2 3.4 2.1 1.2.1 2.4-.3 3.3-1.1.8-.7 1.3-1.7 1.4-2.8.1-.8 0-1.6-.3-2.3-.2-.4-.4-.7-.6-.9m-.6-.3c1.5.8 2.5 2.3 2.6 4 .1 2.2-.9 4.1-2.7 5.2-1.5.9-3.3 1.1-5 .6-2-.6-3.5-2.1-4.2-4-.6-1.7-.5-3.6.3-5.2.9-1.8 2.6-3 4.6-3.4 1.5-.3 3.1 0 4.4.8', viewBox: '0 0 24 24', color: '#000000', color2: '#1a1a1a' },
+      'reddit.com':           { path: 'M12 8c2.6 0 5 1.2 5 3.5S14.6 15 12 15s-5-1.2-5-3.5S9.4 8 12 8zm-2.5 4a.75.75 0 100-1.5.75.75 0 000 1.5zm5 0a.75.75 0 100-1.5.75.75 0 000 1.5zM12 14c-1 0-1.8-.3-2.2-.7a.4.4 0 01.5-.5c.4.3 1 .5 1.7.5s1.3-.2 1.7-.5a.4.4 0 01.5.5c-.4.4-1.2.7-2.2.7zM18.8 9.2a1.6 1.6 0 11-2.3 2.2M5.2 9.2a1.6 1.6 0 102.3 2.2M16 6.5l-1-3.5h-2l1.5 4M12 3a9 9 0 100 18 9 9 0 000-18z', viewBox: '0 0 24 24', color: '#FF4500', color2: '#cc3700' },
+      'x.com':                { path: 'M4 4l6.5 8.5L4 20h2l5.5-6.3L16 20h5l-7-9 6-7h-2l-5 5.7L9 4H4z', viewBox: '0 0 24 24', color: '#000000', color2: '#1a1a1a' },
+      'twitter.com':          { path: 'M23 3a10.9 10.9 0 01-3.14 1.53 4.48 4.48 0 00-7.86 3v1A10.66 10.66 0 013 4s-4 9 5 13a11.64 11.64 0 01-7 2c9 5 20 0 20-11.5a4.5 4.5 0 00-.08-.83A7.72 7.72 0 0023 3z', viewBox: '0 0 24 24', color: '#1DA1F2', color2: '#0d8bd9' },
+      'github.com':           { path: 'M12 2C6.477 2 2 6.477 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.1.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.56 9.56 0 0112 6.8c.85.004 1.7.114 2.5.336 1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.69 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.16.59.67.5A10.003 10.003 0 0022 12c0-5.523-4.477-10-10-10z', viewBox: '0 0 24 24', color: '#24292e', color2: '#1a1e22' },
+      'youtube.com':          { path: 'M19.6 3.2H4.4A2.4 2.4 0 002 5.6v8.8a2.4 2.4 0 002.4 2.4h15.2a2.4 2.4 0 002.4-2.4V5.6a2.4 2.4 0 00-2.4-2.4zM10 14V6l6 4-6 4z', viewBox: '0 0 24 20', color: '#FF0000', color2: '#cc0000' },
+      'medium.com':           { path: 'M13.5 12a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0zm7.1 0c0 3.4-1.5 6.1-3.3 6.1S14 15.4 14 12s1.5-6.1 3.3-6.1 3.3 2.7 3.3 6.1zm3.4 0c0 3-.5 5.5-1.2 5.5S21.6 15 21.6 12s.5-5.5 1.2-5.5 1.2 2.5 1.2 5.5z', viewBox: '0 0 24 24', color: '#000000', color2: '#1a1a1a' },
+      'news.ycombinator.com': { path: 'M12 2L4 6v6c0 5.25 3.4 10.15 8 11.35C16.6 22.15 20 17.25 20 12V6L12 2zm-1 13V9h2v6h-2zm0-8V5h2v2h-2z', viewBox: '0 0 24 24', color: '#FF6600', color2: '#cc5200' },
+      'substack.com':         { path: 'M3 7h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2z', viewBox: '0 0 24 24', color: '#FF6719', color2: '#cc5214' },
+      'linkedin.com':         { path: 'M4 9h3v12H4zm1.5-5.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3zM9 9h3v1.6C12.6 9.6 13.8 9 15 9c3 0 5 1.6 5 5v6h-3v-5.5c0-1.5-.5-2.5-2-2.5s-3 1-3 3V21H9z', viewBox: '0 0 24 24', color: '#0A66C2', color2: '#08519b' },
+      'instagram.com':        { path: 'M12 2.2c3.2 0 3.6 0 4.9.1 3.3.2 4.8 1.7 5 5 .1 1.3.1 1.7.1 4.9 0 3.2 0 3.6-.1 4.9-.2 3.3-1.7 4.8-5 5-1.3.1-1.7.1-4.9.1-3.2 0-3.6 0-4.9-.1-3.3-.2-4.8-1.7-5-5-.1-1.3-.1-1.7-.1-4.9 0-3.2 0-3.6.1-4.9.2-3.3 1.7-4.8 5-5 1.3-.1 1.7-.1 4.9-.1zm0 2.2c-3.2 0-3.5 0-4.8.1-2.2.1-3.2 1.1-3.3 3.3-.1 1.3-.1 1.6-.1 4.8s0 3.5.1 4.8c.1 2.2 1.1 3.2 3.3 3.3 1.3.1 1.6.1 4.8.1s3.5 0 4.8-.1c2.2-.1 3.2-1.1 3.3-3.3.1-1.3.1-1.6.1-4.8s0-3.5-.1-4.8c-.1-2.2-1.1-3.2-3.3-3.3-1.3-.1-1.6-.1-4.8-.1zm0 3.6a4 4 0 110 8 4 4 0 010-8zm0 1.8a2.2 2.2 0 100 4.4 2.2 2.2 0 000-4.4zM18.5 7.5a1 1 0 100 2 1 1 0 000-2z', viewBox: '0 0 24 24', color: '#E1306C', color2: '#b32456' },
+      'tiktok.com':           { path: 'M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.78 1.52V6.76a4.85 4.85 0 01-1.01-.07z', viewBox: '0 0 24 24', color: '#000000', color2: '#1a1a1a' }
     };
 
+    function generateFallbackSvg(domain) {
+      var initial = domain ? domain.replace('www.', '').charAt(0).toUpperCase() : '?';
+      var svg =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">' +
+          '<rect width="320" height="180" fill="#161b22"/>' +
+          '<text x="160" y="110" text-anchor="middle" fill="#484f58" font-family="Inter,system-ui,sans-serif" font-size="72" font-weight="700">' + initial + '</text>' +
+        '</svg>';
+      return 'data:image/svg+xml,' + encodeURIComponent(svg);
+    }
+
+    // Returns a brand SVG data URI for known domains, or null for unknown domains.
     function generatePlaceholderSvg(category, domain) {
-      var theme = categoryThemes[category] || defaultTheme;
       var source = null;
       if (domain) {
-        // Try matching domain to known sources
         for (var key in sourceLogos) {
           if (domain.indexOf(key) !== -1) { source = sourceLogos[key]; break; }
         }
       }
 
-      // Build decorative pattern: diagonal grid lines
-      var patternLines = '';
-      for (var i = -180; i <= 360; i += 24) {
-        patternLines += '<line x1="' + i + '" y1="0" x2="' + (i + 180) + '" y2="180" stroke="' + theme.accent + '" stroke-opacity="0.08" stroke-width="1"/>';
-      }
-
-      // Category icon (centered, large)
-      var iconY = source ? '72' : '82';
-      var iconSize = source ? '38' : '44';
-      var iconX = source ? '141' : '138';
-
-      // Source logo (top-right corner badge)
-      var sourceBadge = '';
-      if (source) {
-        sourceBadge =
-          '<g transform="translate(230, 12)">' +
-            '<rect x="0" y="0" width="40" height="40" rx="10" fill="' + theme.bg + '" stroke="' + theme.accent + '" stroke-width="1.5" stroke-opacity="0.5"/>' +
-            '<g transform="translate(8, 8)">' +
-              '<svg viewBox="' + source.viewBox + '" width="24" height="24">' +
-                '<path d="' + source.path + '" fill="' + theme.accent + '" fill-opacity="0.9"/>' +
-              '</svg>' +
-            '</g>' +
-          '</g>';
-      } else if (domain) {
-        // Unknown source: show first letter in a badge
-        var initial = domain.replace('www.', '').charAt(0).toUpperCase();
-        sourceBadge =
-          '<g transform="translate(230, 12)">' +
-            '<rect x="0" y="0" width="40" height="40" rx="10" fill="' + theme.bg + '" stroke="' + theme.accent + '" stroke-width="1.5" stroke-opacity="0.5"/>' +
-            '<text x="20" y="27" text-anchor="middle" fill="' + theme.accent + '" font-family="Inter,system-ui,sans-serif" font-size="18" font-weight="700">' + initial + '</text>' +
-          '</g>';
-      }
-
-      // Category label at bottom
-      var catLabel = category || (domain ? domain.replace('www.', '') : 'Link');
+      if (!source) return null;
 
       var svg =
         '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">' +
-          // Background gradient
           '<defs>' +
             '<linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">' +
-              '<stop offset="0%" stop-color="' + theme.bg + '"/>' +
-              '<stop offset="100%" stop-color="#0d1117"/>' +
-            '</linearGradient>' +
-            '<linearGradient id="glow" x1="0%" y1="0%" x2="0%" y2="100%">' +
-              '<stop offset="0%" stop-color="' + theme.accent + '" stop-opacity="0.15"/>' +
-              '<stop offset="100%" stop-color="' + theme.accent + '" stop-opacity="0"/>' +
+              '<stop offset="0%" stop-color="' + source.color + '"/>' +
+              '<stop offset="100%" stop-color="' + source.color2 + '"/>' +
             '</linearGradient>' +
           '</defs>' +
           '<rect width="320" height="180" fill="url(#bg)"/>' +
-          // Subtle pattern overlay
-          '<g>' + patternLines + '</g>' +
-          // Top glow
-          '<rect width="320" height="90" fill="url(#glow)"/>' +
-          // Accent circle behind icon
-          '<circle cx="160" cy="' + (parseInt(iconY) + parseInt(iconSize) / 2 - 4) + '" r="' + (parseInt(iconSize) * 0.8) + '" fill="' + theme.accent + '" fill-opacity="0.1"/>' +
-          '<circle cx="160" cy="' + (parseInt(iconY) + parseInt(iconSize) / 2 - 4) + '" r="' + (parseInt(iconSize) * 0.55) + '" fill="' + theme.accent + '" fill-opacity="0.07"/>' +
-          // Category icon
-          '<g transform="translate(' + iconX + ', ' + iconY + ')">' +
-            '<svg viewBox="0 0 24 24" width="' + iconSize + '" height="' + iconSize + '" fill="none" stroke="' + theme.accent + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
-              '<path d="' + theme.icon + '"/>' +
+          '<g transform="translate(130, 60)">' +
+            '<svg viewBox="' + source.viewBox + '" width="60" height="60">' +
+              '<path d="' + source.path + '" fill="#ffffff"/>' +
             '</svg>' +
           '</g>' +
-          // Source badge
-          sourceBadge +
-          // Category label
-          '<text x="160" y="' + (parseInt(iconY) + parseInt(iconSize) + 20) + '" text-anchor="middle" fill="' + theme.accent + '" font-family="Inter,system-ui,sans-serif" font-size="11" font-weight="600" letter-spacing="0.08em" text-transform="uppercase" opacity="0.7">' +
-            catLabel.toUpperCase() +
+          '<text x="160" y="168" text-anchor="middle" fill="#ffffff" font-family="Inter,system-ui,sans-serif" font-size="11" font-weight="500" opacity="0.5">' +
+            escHtml(domain) +
           '</text>' +
-          // Bottom accent line
-          '<rect x="120" y="170" width="80" height="2" rx="1" fill="' + theme.accent + '" fill-opacity="0.3"/>' +
         '</svg>';
 
       return 'data:image/svg+xml,' + encodeURIComponent(svg);
