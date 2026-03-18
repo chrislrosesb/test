@@ -128,7 +128,7 @@ nav {
   color: var(--color-bg);
 }
 
-/* Hamburger button — hidden on desktop */
+/* Menu button — hidden on desktop */
 .nav-hamburger {
   display: none;
   background: none;
@@ -136,13 +136,12 @@ nav {
   cursor: pointer;
   padding: 4px;
   color: var(--color-text-muted);
+  font-size: 0.9rem;
+  font-family: inherit;
+  letter-spacing: 0.01em;
   transition: color var(--transition);
 }
 .nav-hamburger:hover { color: var(--color-text); }
-
-.nav-hamburger svg {
-  display: block;
-}
 
 .nav-links {
   display: flex;
