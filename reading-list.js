@@ -193,22 +193,26 @@
       card.className = 'link-card anim-fade-up';
       card.dataset.id = link.id;
 
-      // Image — three cases: OG image, known brand, or blur-backdrop
+      // Image — known brand SVG, or blur-backdrop (with OG image layered on top if present)
       var imgHtml;
       var brandSvg = generatePlaceholderSvg(link.category, link.domain);
-      if (link.image) {
-        var fallbackSrc = brandSvg || generateFallbackSvg(link.domain);
+      var fav2 = link.favicon || ('https://www.google.com/s2/favicons?domain=' + escAttr(link.domain || '') + '&sz=64');
+      if (brandSvg) {
+        // Known brand: OG image on top, fall back to brand SVG
+        var fallbackSrc = brandSvg;
         imgHtml =
-          '<img class="link-card-image" src="' + escAttr(link.image) + '" alt="" loading="lazy" ' +
+          '<img class="link-card-image" src="' + escAttr(link.image || brandSvg) + '" alt="" loading="lazy" ' +
           'onerror="this.onerror=null;this.src=\'' + escAttr(fallbackSrc) + '\';" />';
-      } else if (brandSvg) {
-        imgHtml = '<img class="link-card-image" src="' + escAttr(brandSvg) + '" alt="" loading="lazy" />';
       } else {
-        var fav = link.favicon || ('https://www.google.com/s2/favicons?domain=' + escAttr(link.domain || '') + '&sz=64');
+        // Unknown domain: blur-backdrop is always the base; OG image floats on top if it exists
+        var ogOverlay = link.image
+          ? '<img class="link-card-og-overlay" src="' + escAttr(link.image) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">'
+          : '';
         imgHtml =
-          '<div class="link-card-placeholder" style="--fav-url: url(\'' + escAttr(fav) + '\')">' +
-            '<img class="link-card-placeholder-favicon" src="' + escAttr(fav) + '" alt="" loading="lazy" ' +
+          '<div class="link-card-placeholder" style="--fav-url: url(\'' + escAttr(fav2) + '\')">' +
+            '<img class="link-card-placeholder-favicon" src="' + escAttr(fav2) + '" alt="" loading="lazy" ' +
             'onerror="this.style.display=\'none\'">' +
+            ogOverlay +
           '</div>';
       }
 
