@@ -473,10 +473,39 @@
       ogTimer = setTimeout(function () { fetchOG(url); }, 700);
     });
 
+    function extractYouTubeId(url) {
+      try {
+        var u = new URL(url);
+        if (u.hostname.indexOf('youtu.be') !== -1) return u.pathname.slice(1).split('/')[0];
+        return u.searchParams.get('v') || '';
+      } catch (e) { return ''; }
+    }
+
     function fetchOG(url) {
       ogStatus.textContent = 'Fetching metadata\u2026';
       var domain = '';
       try { domain = new URL(url).hostname.replace(/^www\./, ''); } catch (e) {}
+
+      // YouTube: use oEmbed for reliable title + stable (non-expiring) thumbnail
+      var ytId = (domain === 'youtube.com' || domain === 'youtu.be') ? extractYouTubeId(url) : '';
+      if (ytId) {
+        fetch('https://www.youtube.com/oembed?url=' + encodeURIComponent(url) + '&format=json')
+          .then(function (r) { if (!r.ok) throw new Error('oembed HTTP ' + r.status); return r.json(); })
+          .then(function (d) {
+            if (d.title       && !linkTitle.value) linkTitle.value = d.title;
+            if (d.author_name && !linkDesc.value)  linkDesc.value  = 'By ' + d.author_name;
+            linkTitle.dataset.ogImage = 'https://img.youtube.com/vi/' + ytId + '/maxresdefault.jpg';
+            linkTitle.dataset.domain  = domain;
+            linkTitle.dataset.favicon = 'https://www.google.com/s2/favicons?domain=' + domain + '&sz=64';
+            ogStatus.textContent = 'Metadata loaded.';
+            setTimeout(function () { ogStatus.textContent = ''; }, 2500);
+          })
+          .catch(function (err) {
+            console.warn('[reading-list] YouTube oEmbed failed:', err.message);
+            ogStatus.textContent = 'Could not fetch metadata \u2014 fill in manually.';
+          });
+        return;
+      }
 
       fetch(MICROLINK + encodeURIComponent(url))
         .then(function (r) {
