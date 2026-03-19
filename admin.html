@@ -220,6 +220,10 @@
         <input type="text" id="sw-icon" placeholder="e.g. 🔒" autocomplete="off" style="font-size:1.4rem;width:80px;" />
       </div>
       <div class="form-group">
+        <label for="sw-url">URL <span style="font-weight:400;color:var(--color-text-dim);">(optional — makes the card clickable)</span></label>
+        <input type="url" id="sw-url" placeholder="https://…" autocomplete="off" />
+      </div>
+      <div class="form-group">
         <label for="sw-desc">Description</label>
         <textarea id="sw-desc" placeholder="Why you use it, what makes it great…"></textarea>
       </div>
@@ -231,6 +235,6 @@
   <script src="theme.js" defer></script>
   <script src="cursor.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="admin.js?v=3" defer></script>
+  <script src="admin.js?v=4" defer></script>
 </body>
 </html>

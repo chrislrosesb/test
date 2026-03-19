@@ -282,6 +282,7 @@
       document.getElementById('sw-name').value  = item ? item.name              : '';
       document.getElementById('sw-badge').value = item ? (item.badge  || '')    : '';
       document.getElementById('sw-icon').value  = item ? (item.icon   || '')    : '';
+      document.getElementById('sw-url').value   = item ? (item.url    || '')    : '';
       document.getElementById('sw-desc').value  = item ? (item.description || '') : '';
       swStatus.textContent = '';
       swModal.removeAttribute('hidden');
@@ -300,6 +301,7 @@
         name:        name,
         badge:       document.getElementById('sw-badge').value.trim() || null,
         icon:        document.getElementById('sw-icon').value.trim()  || null,
+        url:         document.getElementById('sw-url').value.trim()   || null,
         description: document.getElementById('sw-desc').value.trim(),
         sort_order:  orig ? orig.sort_order : state.software.length
       };

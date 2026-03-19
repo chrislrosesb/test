@@ -2533,6 +2533,25 @@ body:not(.admin-mode) .link-card-action-btn.read-toggle { display: none; }
   margin-top: 1rem;
 }
 
+/* Clickable software card */
+a.card--link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+a.card--link:hover {
+  transform: translateY(-4px);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 28px rgba(88, 166, 255, 0.1), var(--shadow-md);
+}
+a.card--link h3 {
+  transition: color 0.2s;
+}
+a.card--link:hover h3 {
+  color: var(--color-accent);
+}
+
 /* Curate button (admin only) */
 .filter-curate-btn {
   padding: 0.3rem 0.7rem;
