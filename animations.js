@@ -417,6 +417,34 @@
       });
     }());
 
+    /* ── 10. Award scramble (40 Under 40 tile) ─────────────────── */
+    (function initAwardScramble() {
+      var el = document.querySelector('.award-scramble-num');
+      if (!el) return;
+
+      if (!motionOK) return; /* reduced-motion: leave "40" as-is */
+
+      ScrollTrigger.create({
+        trigger: el,
+        start: 'top 88%',
+        once: true,
+        onEnter: function () {
+          var interval = setInterval(function () {
+            el.textContent = Math.floor(Math.random() * 89 + 10);
+          }, 60);
+
+          setTimeout(function () {
+            clearInterval(interval);
+            el.textContent = '40';
+            gsap.fromTo(el,
+              { scale: 1.4, color: '#ffffff' },
+              { scale: 1, color: 'var(--color-accent)', duration: 0.35, ease: 'back.out(2)' }
+            );
+          }, 1100);
+        }
+      });
+    }());
+
   }); /* end onReady */
 
 }());
