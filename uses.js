@@ -9,11 +9,13 @@
     Promise.all([
       db.from('gear_hardware').select('*').order('sort_order'),
       db.from('gear_software').select('*').order('sort_order'),
-      db.from('site_content').select('*').eq('id', 'now').single()
+      db.from('site_content').select('*').eq('id', 'now').single(),
+      db.from('gear_hobbies').select('*').order('sort_order')
     ]).then(function (results) {
       renderHardware(results[0].data || []);
       renderSoftware(results[1].data || []);
       renderNow(results[2].data);
+      renderHobbies(results[3].data || []);
     }).catch(function (err) {
       console.warn('[uses] load failed:', err.message);
     });
@@ -50,6 +52,39 @@
     grid.innerHTML = '';
     if (!items.length) {
       grid.innerHTML = '<p style="color:var(--color-text-muted);font-size:0.9rem;">No software items yet.</p>';
+      return;
+    }
+    items.forEach(function (item) {
+      var iconHtml = item.icon
+        ? '<div style="font-size:1.75rem;line-height:1;margin-bottom:0.75rem;">' + escHtml(item.icon) + '</div>'
+        : '<div style="margin-bottom:0.75rem;">' + codeSvg() + '</div>';
+      var inner =
+        iconHtml +
+        '<h3>' + escHtml(item.name) + '</h3>' +
+        (item.badge ? '<span class="hardware-badge">' + escHtml(item.badge) + '</span>' : '') +
+        '<p>' + escHtml(item.description || '') + '</p>';
+      var card;
+      if (item.url) {
+        card = document.createElement('a');
+        card.href = item.url;
+        card.target = '_blank';
+        card.rel = 'noopener noreferrer';
+        card.className = 'card anim-fade-up card--link';
+      } else {
+        card = document.createElement('div');
+        card.className = 'card anim-fade-up';
+      }
+      card.innerHTML = inner;
+      grid.appendChild(card);
+    });
+  }
+
+  function renderHobbies(items) {
+    var grid = document.getElementById('hobbies-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    if (!items.length) {
+      grid.innerHTML = '<p style="color:var(--color-text-muted);font-size:0.9rem;">No hobbies yet.</p>';
       return;
     }
     items.forEach(function (item) {

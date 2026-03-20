@@ -9,8 +9,10 @@
     categories:        [],
     hardware:          [],
     software:          [],
+    hobbies:           [],
     editingHardwareId: null,
-    editingSoftwareId: null
+    editingSoftwareId: null,
+    editingHobbyId:    null
   };
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -35,6 +37,8 @@
     var hwStatus   = document.getElementById('hw-status');
     var swModal    = document.getElementById('sw-modal');
     var swStatus   = document.getElementById('sw-status');
+    var hbModal    = document.getElementById('hb-modal');
+    var hbStatus   = document.getElementById('hb-status');
 
     var nowTextarea = document.getElementById('now-textarea');
     var nowSaveBtn  = document.getElementById('now-save-btn');
@@ -174,12 +178,15 @@
     function loadGear() {
       Promise.all([
         db.from('gear_hardware').select('*').order('sort_order'),
-        db.from('gear_software').select('*').order('sort_order')
+        db.from('gear_software').select('*').order('sort_order'),
+        db.from('gear_hobbies').select('*').order('sort_order')
       ]).then(function (results) {
         state.hardware = results[0].data || [];
         state.software = results[1].data || [];
+        state.hobbies  = results[2].data || [];
         renderHardwareList();
         renderSoftwareList();
+        renderHobbiesList();
       });
     }
 
@@ -319,6 +326,75 @@
       db.from('gear_software').delete().eq('id', id).then(function () { loadGear(); });
     }
 
+    // ── Gear: Hobbies ─────────────────────────────────────────────
+    function renderHobbiesList() {
+      var list = document.getElementById('hobbies-list');
+      list.innerHTML = '';
+      if (!state.hobbies.length) {
+        list.innerHTML = '<p style="color:var(--color-text-muted);font-size:0.85rem;padding:0.5rem 0;">No hobby items yet.</p>';
+        return;
+      }
+      state.hobbies.forEach(function (item) {
+        var row = document.createElement('div');
+        row.className = 'admin-list-item';
+        row.innerHTML =
+          '<span class="admin-list-item-name">' + escHtml(item.name) + '</span>' +
+          '<button class="btn admin-item-btn" data-action="edit">Edit</button>' +
+          '<button class="btn admin-item-btn admin-item-btn--danger" data-action="del">Delete</button>';
+        row.querySelector('[data-action="edit"]').addEventListener('click', function () { openHobbyModal(item); });
+        row.querySelector('[data-action="del"]').addEventListener('click', function () { deleteHobby(item.id, item.name); });
+        list.appendChild(row);
+      });
+    }
+
+    document.getElementById('add-hobby-btn').addEventListener('click', function () { openHobbyModal(null); });
+    document.getElementById('hb-modal-close').addEventListener('click', closeHobbyModal);
+    document.getElementById('hb-modal-backdrop').addEventListener('click', closeHobbyModal);
+    document.getElementById('hb-save-btn').addEventListener('click', saveHobby);
+
+    function openHobbyModal(item) {
+      state.editingHobbyId = item ? item.id : null;
+      document.getElementById('hb-modal-title').textContent = item ? 'Edit Hobby' : 'Add Hobby';
+      document.getElementById('hb-name').value  = item ? item.name              : '';
+      document.getElementById('hb-badge').value = item ? (item.badge  || '')    : '';
+      document.getElementById('hb-icon').value  = item ? (item.icon   || '')    : '';
+      document.getElementById('hb-url').value   = item ? (item.url    || '')    : '';
+      document.getElementById('hb-desc').value  = item ? (item.description || '') : '';
+      hbStatus.textContent = '';
+      hbModal.removeAttribute('hidden');
+      setTimeout(function () { document.getElementById('hb-name').focus(); }, 40);
+    }
+
+    function closeHobbyModal() { hbModal.setAttribute('hidden', ''); }
+
+    function saveHobby() {
+      var name = document.getElementById('hb-name').value.trim();
+      if (!name) { hbStatus.style.color = '#f85149'; hbStatus.textContent = 'Name is required.'; return; }
+      var id   = state.editingHobbyId || (slugify(name) + '-' + Date.now().toString(36));
+      var orig = state.editingHobbyId ? state.hobbies.find(function (h) { return h.id === state.editingHobbyId; }) : null;
+      var entry = {
+        id:          id,
+        name:        name,
+        badge:       document.getElementById('hb-badge').value.trim() || null,
+        icon:        document.getElementById('hb-icon').value.trim()  || null,
+        url:         document.getElementById('hb-url').value.trim()   || null,
+        description: document.getElementById('hb-desc').value.trim(),
+        sort_order:  orig ? orig.sort_order : state.hobbies.length
+      };
+      hbStatus.style.color = 'var(--color-text-dim)';
+      hbStatus.textContent = 'Saving\u2026';
+      db.from('gear_hobbies').upsert(entry).then(function (res) {
+        if (res.error) { hbStatus.style.color = '#f85149'; hbStatus.textContent = '\u2717 ' + res.error.message; return; }
+        closeHobbyModal();
+        loadGear();
+      });
+    }
+
+    function deleteHobby(id, name) {
+      if (!window.confirm('Delete \u201C' + name + '\u201D?')) return;
+      db.from('gear_hobbies').delete().eq('id', id).then(function () { loadGear(); });
+    }
+
     // ── Now ───────────────────────────────────────────────────────
     function loadNow() {
       db.from('site_content').select('*').eq('id', 'now').single().then(function (res) {
@@ -353,7 +429,8 @@
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
       if (!hwModal.hasAttribute('hidden')) { closeHardwareModal(); return; }
-      if (!swModal.hasAttribute('hidden')) { closeSoftwareModal(); }
+      if (!swModal.hasAttribute('hidden')) { closeSoftwareModal(); return; }
+      if (!hbModal.hasAttribute('hidden')) { closeHobbyModal(); }
     });
 
     // ── Utilities ─────────────────────────────────────────────────

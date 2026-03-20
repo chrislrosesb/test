@@ -131,6 +131,14 @@
           </div>
 
           <div class="admin-subsection">
+            <div class="admin-subsection-header">
+              <h3 class="admin-subsection-title">Other Hobbies</h3>
+              <button class="btn btn-primary" id="add-hobby-btn" style="font-size:0.8rem;padding:0.35rem 0.9rem;">+ Add Hobby</button>
+            </div>
+            <div id="hobbies-list"></div>
+          </div>
+
+          <div class="admin-subsection">
             <a href="uses.html" class="btn" style="font-size:0.8rem;">View My Gear page &rarr;</a>
           </div>
 
@@ -229,6 +237,37 @@
       </div>
       <div id="sw-status" style="font-size:0.8rem;min-height:1.2em;margin-bottom:0.5rem;"></div>
       <button class="btn btn-primary" id="sw-save-btn" style="width:100%;">Save</button>
+    </div>
+  </div>
+
+  <!-- Hobby modal -->
+  <div class="rl-modal" id="hb-modal" hidden>
+    <div class="rl-modal-backdrop" id="hb-modal-backdrop"></div>
+    <div class="rl-modal-inner">
+      <button class="rl-modal-close" id="hb-modal-close" aria-label="Close">&times;</button>
+      <p class="rl-modal-title" id="hb-modal-title">Add Hobby</p>
+      <div class="form-group">
+        <label for="hb-name">Name</label>
+        <input type="text" id="hb-name" placeholder="e.g. Photography" autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label for="hb-badge">Badge <span style="font-weight:400;color:var(--color-text-dim);">(optional — e.g. Weekly, New)</span></label>
+        <input type="text" id="hb-badge" placeholder="e.g. Weekly" autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label for="hb-icon">Icon <span style="font-weight:400;color:var(--color-text-dim);">(optional — paste an emoji, e.g. 📷)</span></label>
+        <input type="text" id="hb-icon" placeholder="e.g. 📷" autocomplete="off" style="font-size:1.4rem;width:80px;" />
+      </div>
+      <div class="form-group">
+        <label for="hb-url">URL <span style="font-weight:400;color:var(--color-text-dim);">(optional — makes the card clickable)</span></label>
+        <input type="url" id="hb-url" placeholder="https://…" autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label for="hb-desc">Description</label>
+        <textarea id="hb-desc" placeholder="What you love about it…"></textarea>
+      </div>
+      <div id="hb-status" style="font-size:0.8rem;min-height:1.2em;margin-bottom:0.5rem;"></div>
+      <button class="btn btn-primary" id="hb-save-btn" style="width:100%;">Save</button>
     </div>
   </div>
 
