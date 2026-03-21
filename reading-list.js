@@ -218,16 +218,19 @@
       });
     }
 
-    // ── View mode (grid / compact) ───────────────────────────────
-    var viewMode = localStorage.getItem('rl-view') || 'grid';
+    // ── View mode (feed / compact) ───────────────────────────────
+    var viewMode = localStorage.getItem('rl-view') || 'feed';
+    if (viewMode === 'grid') viewMode = 'feed'; // backwards compat
 
     function applyViewMode() {
       if (viewMode === 'compact') {
+        linksGrid.classList.remove('links-grid--feed');
         linksGrid.classList.add('links-grid--compact');
         filterViewIconGrid.style.display = 'none';
         filterViewIconList.style.display = '';
-        filterViewBtn.title = 'Switch to grid view';
+        filterViewBtn.title = 'Switch to feed view';
       } else {
+        linksGrid.classList.add('links-grid--feed');
         linksGrid.classList.remove('links-grid--compact');
         filterViewIconGrid.style.display = '';
         filterViewIconList.style.display = 'none';
@@ -236,7 +239,7 @@
     }
 
     filterViewBtn.addEventListener('click', function () {
-      viewMode = viewMode === 'grid' ? 'compact' : 'grid';
+      viewMode = viewMode === 'feed' ? 'compact' : 'feed';
       localStorage.setItem('rl-view', viewMode);
       applyViewMode();
     });
@@ -406,24 +409,88 @@
       }
     }
 
+    // ── Status popover ──────────────────────────────────────────
+    var activePopover = null;
+
+    function openStatusPopover(id, pillEl) {
+      if (activePopover) { activePopover.remove(); activePopover = null; }
+
+      var opts = [
+        { value: null,        label: '\u25CB  No status' },
+        { value: 'to-read',   label: '\uD83D\uDCD6 To Read' },
+        { value: 'to-try',    label: '\u26A1 To Try' },
+        { value: 'to-share',  label: '\uD83D\uDC8C To Share' },
+        { value: 'done',      label: '\u2713  Done' }
+      ];
+
+      var popover = document.createElement('div');
+      popover.className = 'status-popover';
+
+      opts.forEach(function (opt) {
+        var btn = document.createElement('button');
+        btn.className = 'status-popover-option';
+        btn.textContent = opt.label;
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          setLinkStatus(id, opt.value);
+          popover.remove();
+          activePopover = null;
+        });
+        popover.appendChild(btn);
+      });
+
+      document.body.appendChild(popover);
+      activePopover = popover;
+
+      var rect = pillEl.getBoundingClientRect();
+      popover.style.position = 'fixed';
+      var top = rect.bottom + 4;
+      var left = rect.left;
+      if (left + 160 > window.innerWidth) left = window.innerWidth - 164;
+      popover.style.top = top + 'px';
+      popover.style.left = left + 'px';
+    }
+
+    document.addEventListener('click', function (e) {
+      if (activePopover && !activePopover.contains(e.target)) {
+        activePopover.remove();
+        activePopover = null;
+      }
+    });
+
+    function setLinkStatus(id, newStatus) {
+      var link = state.allLinks.find(function (l) { return l.id === id; });
+      if (!link) return;
+      var prevStatus = link.status;
+      link.status = newStatus || null;
+      link.read   = (newStatus === 'done');
+      applyFilters();
+      db.from('links').update({ status: link.status, read: link.read }).eq('id', id).then(function (res) {
+        if (res.error) {
+          link.status = prevStatus;
+          link.read   = (prevStatus === 'done');
+          applyFilters();
+          showToast('Could not save status: ' + res.error.message, 'error');
+        }
+      });
+    }
+
     // ── Build card ──────────────────────────────────────────────
     function buildCard(link) {
       var card = document.createElement('article');
       card.className = 'link-card anim-fade-up';
       card.dataset.id = link.id;
+      if (link.status) card.classList.add('status-' + link.status);
 
-      // Image — known brand SVG, or blur-backdrop (with OG image layered on top if present)
+      // Thumbnail image HTML
       var imgHtml;
       var brandSvg = generatePlaceholderSvg(link.category, link.domain);
       var fav2 = link.favicon || ('https://www.google.com/s2/favicons?domain=' + escAttr(link.domain || '') + '&sz=64');
       if (brandSvg) {
-        // Known brand: OG image on top, fall back to brand SVG
-        var fallbackSrc = brandSvg;
         imgHtml =
           '<img class="link-card-image" src="' + escAttr(link.image || brandSvg) + '" alt="" loading="lazy" ' +
-          'onerror="this.onerror=null;this.src=\'' + escAttr(fallbackSrc) + '\';" />';
+          'onerror="this.onerror=null;this.src=\'' + escAttr(brandSvg) + '\';" />';
       } else {
-        // Unknown domain: blur-backdrop is always the base; OG image floats on top if it exists
         var ogOverlay = link.image
           ? '<img class="link-card-og-overlay" src="' + escAttr(link.image) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">'
           : '';
@@ -451,21 +518,15 @@
         } catch (e) {}
       }
 
-      var unreadBadge = (link.read === false)
-        ? ''
-        : '';
+      // Status pill label
+      var statusLabels = { 'to-read': '\uD83D\uDCD6 To Read', 'to-try': '\u26A1 To Try', 'to-share': '\uD83D\uDC8C To Share', 'done': '\u2713 Done' };
+      var pillLabel = link.status ? (statusLabels[link.status] || link.status) : '\u25CB None';
+      var statusPill =
+        '<button class="link-card-status-pill status-' + (link.status || 'none') + '" ' +
+        'data-id="' + escAttr(link.id) + '" aria-label="Set status" title="Change status">' +
+        pillLabel + ' \u25BE</button>';
 
-      var statusLabels = { 'to-read': '📖 To Read', 'to-try': '⚡ To Try', 'to-share': '💌 To Share', 'done': '✓ Done' };
-      var statusBadge = link.status
-        ? '<span class="link-card-status-badge status-' + link.status + '">' + (statusLabels[link.status] || link.status) + '</span>'
-        : '';
-
-      var statusIcons = { 'to-read': '&#128218;', 'to-try': '&#9889;', 'to-share': '&#128140;', 'done': '&#10003;' };
-      var statusBtnIcon = link.status ? (statusIcons[link.status] || '&#9675;') : '&#9675;';
-      var statusBtn = state.isAdmin
-        ? '<button class="link-card-read-btn" data-id="' + escAttr(link.id) + '" aria-label="Change status" title="Click to cycle status: ' + (link.status || 'none') + '">' + statusBtnIcon + '</button>'
-        : '';
-
+      // Tags
       var tagsHtml = '';
       if (link.tags) {
         link.tags.split(',').forEach(function (t) {
@@ -474,32 +535,43 @@
         });
       }
 
+      // Favicon
+      var faviconHtml = link.favicon
+        ? '<img class="link-card-favicon" src="' + escAttr(link.favicon) + '" alt="" loading="lazy" onerror="this.style.display=\'none\';" />'
+        : '';
+
       card.innerHTML =
-        '<div class="link-card-actions">' +
-          '<button class="link-card-action-btn copy" data-id="' + escAttr(link.id) + '" data-url="' + escAttr(link.url) + '" aria-label="Copy link">&#128279;</button>' +
-          '<button class="link-card-action-btn edit" data-id="' + escAttr(link.id) + '" aria-label="Edit link">&#9998;</button>' +
-          '<button class="link-card-action-btn delete" data-id="' + escAttr(link.id) + '" aria-label="Delete link">&times;</button>' +
+        // Thumbnail
+        '<div class="link-card-thumb-wrap">' +
+          '<a href="' + escAttr(link.url) + '" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true">' +
+            imgHtml +
+          '</a>' +
         '</div>' +
-        statusBtn +
-        statusBadge +
-        '<a href="' + escAttr(link.url) + '" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true" style="display:block;text-decoration:none;">' +
-          imgHtml +
-        '</a>' +
-        '<div class="link-card-header">' +
-          (link.favicon ? '<img class="link-card-favicon" src="' + escAttr(link.favicon) + '" alt="" loading="lazy" onerror="this.style.display=\'none\';" />' : '') +
-          '<span class="link-card-domain">' + escHtml(link.domain || '') + '</span>' +
-        '</div>' +
-        '<div class="link-card-body">' +
-          '<a href="' + escAttr(link.url) + '" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">' +
+        // Main content
+        '<div class="link-card-main">' +
+          '<a href="' + escAttr(link.url) + '" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit;">' +
             '<p class="link-card-title">' + escHtml(link.title || 'Untitled') + '</p>' +
           '</a>' +
-          (link.note ? '<div class="link-card-note-box"><p class="link-card-note">' + escHtml(link.note) + '</p></div>' : '') +
-          (link.description ? '<p class="link-card-description">' + escHtml(link.description) + '</p>' : '') +
-          '<div class="link-card-meta">' +
+          '<div class="link-card-byline">' +
+            faviconHtml +
+            (link.domain ? '<span class="link-card-domain">' + escHtml(link.domain) + '</span>' : '') +
+            (link.domain && (link.stars || dateStr) ? '<span style="opacity:0.4">\u00b7</span>' : '') +
+            (link.stars ? starsHtml : '') +
+            (dateStr ? '<span class="link-card-date">' + escHtml(dateStr) + '</span>' : '') +
+          '</div>' +
+          (link.note ? '<p class="link-card-note-inline">' + escHtml(link.note) + '</p>' : '') +
+        '</div>' +
+        // Right column
+        '<div class="link-card-right">' +
+          '<div class="link-card-tags">' +
             (link.category ? '<span class="tag">' + escHtml(link.category) + '</span>' : '') +
             tagsHtml +
-            starsHtml +
-            (dateStr ? '<span class="link-card-date">' + escHtml(dateStr) + '</span>' : '') +
+          '</div>' +
+          statusPill +
+          '<div class="link-card-actions">' +
+            '<button class="link-card-action-btn copy" data-id="' + escAttr(link.id) + '" data-url="' + escAttr(link.url) + '" aria-label="Copy link">&#128279;</button>' +
+            '<button class="link-card-action-btn edit" data-id="' + escAttr(link.id) + '" aria-label="Edit link">&#9998;</button>' +
+            '<button class="link-card-action-btn delete" data-id="' + escAttr(link.id) + '" aria-label="Delete link">&times;</button>' +
           '</div>' +
         '</div>';
 
@@ -514,11 +586,11 @@
       });
 
       if (state.isAdmin) {
-        var statusBtnEl = card.querySelector('.link-card-read-btn');
-        statusBtnEl.addEventListener('click', function (e) {
+        var pillEl = card.querySelector('.link-card-status-pill');
+        pillEl.addEventListener('click', function (e) {
           e.preventDefault();
           e.stopPropagation();
-          toggleStatus(link.id);
+          openStatusPopover(link.id, pillEl);
         });
       }
 
