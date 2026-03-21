@@ -971,8 +971,9 @@
     // ── Toggle read status ───────────────────────────────────────
     function toggleRead(id) {
       var link = state.allLinks.find(function (l) { return l.id === id; });
-      if (!link) return;
+      if (!link) { showToast('DEBUG: link not found', 'error'); return; }
       var newRead = (link.read === false); // false→true (mark as read), true/null→false (mark as unread)
+      showToast('DEBUG: ' + (newRead ? 'marking read' : 'marking unread'), 'success');
       link.read = newRead;
       applyFilters();
       db.from('links').update({ read: newRead }).eq('id', id).then(function (res) {
