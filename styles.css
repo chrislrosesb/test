@@ -3151,7 +3151,7 @@ a.podcast-card:hover .podcast-card-body h3 {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  padding-bottom: 2px;
+  padding: 4px 2px 4px;
 }
 
 .gear-tabs-bar::-webkit-scrollbar { display: none; }
