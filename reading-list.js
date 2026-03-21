@@ -153,7 +153,7 @@
 
       var q = state.searchQuery.toLowerCase().trim();
       if (q) {
-        var tokens = q.split(/\s+/).filter(Boolean);
+        var tokens = q.split(/\s+/).filter(Boolean); // multi-token search
         links = links.filter(function (l) {
           var haystack = [l.title, l.description, l.note, l.domain, l.category, l.tags]
             .filter(Boolean).join(' ').toLowerCase();
