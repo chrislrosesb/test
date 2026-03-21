@@ -51,36 +51,6 @@ The site uses vanilla JS (no frameworks, no build step). `reading-list.js`,
 `uses.js`, and `admin.js` handle dynamic content. The Supabase JS v2 SDK is
 loaded from CDN.
 
-### Photo placeholder
-Each page has a `<div class="photo-placeholder">` with a person SVG icon.
-**To replace:** swap the `<div class="photo-placeholder">` with:
-```html
-<img src="images/your-photo.jpg" alt="[Your Name]" class="photo-placeholder" />
-```
-Add appropriate `width`/`height` and keep the `border-radius` from the CSS.
-
----
-
-## Contact Form
-
-GitHub Pages is a **static host** — it cannot process form submissions natively.
-
-**Chosen approach:** [Formspree](https://formspree.io)
-- Free tier supports 50 submissions/month
-- No JavaScript required (pure HTML form POST)
-- Steps to activate:
-  1. Create a free account at formspree.io
-  2. Create a new form and copy the endpoint ID
-  3. In `contact.html`, replace `YOUR_FORM_ID` in the `action` attribute:
-     ```html
-     action="https://formspree.io/f/YOUR_FORM_ID"
-     ```
-
-**Alternatives considered:**
-- Netlify Forms — requires hosting on Netlify instead of GitHub Pages
-- EmailJS — requires adding a JS snippet; adds complexity
-- Mailto link — no server processing, poor UX
-
 ---
 
 ## Cache Busting — ALWAYS DO THIS
@@ -108,51 +78,11 @@ GitHub Pages is a **static host** — it cannot process form submissions nativel
 
 ---
 
-## GitHub Pages / Hosting Deployment
+## Deployment
 
-The site is deployed from the `main` branch (or `gh-pages` branch, depending on
-your repo settings).
-
-**To enable GitHub Pages:**
-1. Push all files to your repository
-2. Go to **Settings → Pages** in your GitHub repo
-3. Under **Source**, select the branch (e.g. `main`) and folder (`/ (root)`)
-4. Save — GitHub will provide a URL like `https://yourusername.github.io/repo-name/`
-
-**Custom domain (optional):**
-- Add a `CNAME` file to the repo root containing your domain (e.g. `yourname.com`)
-- Configure your DNS to point to GitHub Pages IPs (see GitHub docs)
-
----
-
-## Customization Checklist
-
-Replace all placeholder text before going live:
-
-- [ ] `[Your Name]` — your full name (appears in nav, hero, footer, `<title>`)
-- [ ] `[Your Location]` — city / country
-- [ ] `[Your Role / Title]` — e.g. "Software Engineer", "Designer"
-- [ ] `[Your Education]` — e.g. "B.Sc. Computer Science, MIT"
-- [ ] `[A fun personal fact]` — e.g. "Runs on cold brew"
-- [ ] Hero paragraph — your personal pitch
-- [ ] About page paragraphs — your real story
-- [ ] Skills tags — your actual skill set
-- [ ] Projects section — your real projects
-- [ ] Photo placeholder — your actual photo (see above)
-- [ ] Social links in `contact.html` — GitHub, LinkedIn, Twitter, email
-- [ ] Formspree form ID — to activate the contact form
-- [ ] `<meta name="description">` on each page — for SEO
-
----
-
-## Future Ideas (not yet implemented)
-
-- Dark mode toggle (CSS `prefers-color-scheme` media query + JS toggle)
-- Blog / writing section (could be a separate `blog/` directory with an index)
-- Project detail pages
-- Analytics (Plausible or Fathom — privacy-respecting)
-- Favicon (`favicon.ico` / `<link rel="icon">`)
-- Open Graph meta tags for social sharing previews
+- **Primary host:** Company-managed hosting environment — can run any server software
+- **Mirror:** GitHub Pages (also deploys from `main` branch automatically)
+- **Deploy process:** `git push` to `main` — no build step, files are served directly
 
 ---
 
@@ -177,4 +107,4 @@ Replace all placeholder text before going live:
 
 ---
 
-*Last updated: 2026-03-20 by Claude Code*
+*Last updated: 2026-03-21 by Claude Code*
