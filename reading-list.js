@@ -972,7 +972,7 @@
     function toggleRead(id) {
       var link = state.allLinks.find(function (l) { return l.id === id; });
       if (!link) return;
-      var newRead = !(link.read === false); // false→true, true/null/undefined→false
+      var newRead = (link.read === false); // false→true (mark as read), true/null→false (mark as unread)
       link.read = newRead;
       applyFilters();
       db.from('links').update({ read: newRead }).eq('id', id).then(function (res) {
