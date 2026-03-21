@@ -10,9 +10,11 @@
     hardware:          [],
     software:          [],
     hobbies:           [],
+    projects:          [],
     editingHardwareId: null,
     editingSoftwareId: null,
-    editingHobbyId:    null
+    editingHobbyId:    null,
+    editingProjectId:  null
   };
 
   function init() {
@@ -39,6 +41,8 @@
     var swStatus   = document.getElementById('sw-status');
     var hbModal    = document.getElementById('hb-modal');
     var hbStatus   = document.getElementById('hb-status');
+    var prModal    = document.getElementById('pr-modal');
+    var prStatus   = document.getElementById('pr-status');
 
     var nowTextarea = document.getElementById('now-textarea');
     var nowSaveBtn  = document.getElementById('now-save-btn');
@@ -179,14 +183,17 @@
       Promise.all([
         db.from('gear_hardware').select('*').order('sort_order'),
         db.from('gear_software').select('*').order('sort_order'),
-        db.from('gear_hobbies').select('*').order('sort_order')
+        db.from('gear_hobbies').select('*').order('sort_order'),
+        db.from('gear_projects').select('*').order('sort_order')
       ]).then(function (results) {
         state.hardware = results[0].data || [];
         state.software = results[1].data || [];
         state.hobbies  = results[2].data || [];
+        state.projects = results[3].data || [];
         renderHardwareList();
         renderSoftwareList();
         renderHobbiesList();
+        renderProjectsList();
       });
     }
 
@@ -393,6 +400,76 @@
       db.from('gear_hobbies').delete().eq('id', id).then(function () { loadGear(); });
     }
 
+    // ── Gear: Projects ────────────────────────────────────────────
+    function renderProjectsList() {
+      var list = document.getElementById('projects-list');
+      list.innerHTML = '';
+      if (!state.projects.length) {
+        list.innerHTML = '<p style="color:var(--color-text-muted);font-size:0.85rem;padding:0.5rem 0;">No projects yet.</p>';
+        return;
+      }
+      state.projects.forEach(function (item) {
+        var row = document.createElement('div');
+        row.className = 'admin-list-item';
+        row.innerHTML =
+          '<span class="admin-list-item-name">' + escHtml(item.name) + '</span>' +
+          (item.badge ? '<span class="admin-list-item-meta">' + escHtml(item.badge) + '</span>' : '') +
+          '<button class="btn admin-item-btn" data-action="edit">Edit</button>' +
+          '<button class="btn admin-item-btn admin-item-btn--danger" data-action="del">Delete</button>';
+        row.querySelector('[data-action="edit"]').addEventListener('click', function () { openProjectModal(item); });
+        row.querySelector('[data-action="del"]').addEventListener('click', function () { deleteProject(item.id, item.name); });
+        list.appendChild(row);
+      });
+    }
+
+    document.getElementById('add-project-btn').addEventListener('click', function () { openProjectModal(null); });
+    document.getElementById('pr-modal-close').addEventListener('click', closeProjectModal);
+    document.getElementById('pr-modal-backdrop').addEventListener('click', closeProjectModal);
+    document.getElementById('pr-save-btn').addEventListener('click', saveProject);
+
+    function openProjectModal(item) {
+      state.editingProjectId = item ? item.id : null;
+      document.getElementById('pr-modal-title').textContent = item ? 'Edit Project' : 'Add Project';
+      document.getElementById('pr-name').value  = item ? item.name              : '';
+      document.getElementById('pr-badge').value = item ? (item.badge  || '')    : '';
+      document.getElementById('pr-icon').value  = item ? (item.icon   || '')    : '';
+      document.getElementById('pr-url').value   = item ? (item.url    || '')    : '';
+      document.getElementById('pr-desc').value  = item ? (item.description || '') : '';
+      prStatus.textContent = '';
+      prModal.removeAttribute('hidden');
+      setTimeout(function () { document.getElementById('pr-name').focus(); }, 40);
+    }
+
+    function closeProjectModal() { prModal.setAttribute('hidden', ''); }
+
+    function saveProject() {
+      var name = document.getElementById('pr-name').value.trim();
+      if (!name) { prStatus.style.color = '#f85149'; prStatus.textContent = 'Name is required.'; return; }
+      var id   = state.editingProjectId || (slugify(name) + '-' + Date.now().toString(36));
+      var orig = state.editingProjectId ? state.projects.find(function (p) { return p.id === state.editingProjectId; }) : null;
+      var entry = {
+        id:          id,
+        name:        name,
+        badge:       document.getElementById('pr-badge').value.trim() || null,
+        icon:        document.getElementById('pr-icon').value.trim()  || null,
+        url:         document.getElementById('pr-url').value.trim()   || null,
+        description: document.getElementById('pr-desc').value.trim(),
+        sort_order:  orig ? orig.sort_order : state.projects.length
+      };
+      prStatus.style.color = 'var(--color-text-dim)';
+      prStatus.textContent = 'Saving\u2026';
+      db.from('gear_projects').upsert(entry).then(function (res) {
+        if (res.error) { prStatus.style.color = '#f85149'; prStatus.textContent = '\u2717 ' + res.error.message; return; }
+        closeProjectModal();
+        loadGear();
+      });
+    }
+
+    function deleteProject(id, name) {
+      if (!window.confirm('Delete \u201C' + name + '\u201D?')) return;
+      db.from('gear_projects').delete().eq('id', id).then(function () { loadGear(); });
+    }
+
     // ── Now ───────────────────────────────────────────────────────
     function loadNow() {
       db.from('site_content').select('*').eq('id', 'now').single().then(function (res) {
@@ -428,7 +505,8 @@
       if (e.key !== 'Escape') return;
       if (!hwModal.hasAttribute('hidden')) { closeHardwareModal(); return; }
       if (!swModal.hasAttribute('hidden')) { closeSoftwareModal(); return; }
-      if (!hbModal.hasAttribute('hidden')) { closeHobbyModal(); }
+      if (!hbModal.hasAttribute('hidden')) { closeHobbyModal(); return; }
+      if (!prModal.hasAttribute('hidden')) { closeProjectModal(); }
     });
 
     // ── Utilities ─────────────────────────────────────────────────
