@@ -44,6 +44,9 @@
     var adminFabIcon  = document.getElementById('admin-fab-icon');
     var adminBadge    = document.getElementById('admin-badge');
     var adminAddBtn   = document.getElementById('admin-add-btn');
+    var filterViewBtn    = document.getElementById('filter-view-btn');
+    var filterViewIconGrid = document.getElementById('filter-view-icon-grid');
+    var filterViewIconList = document.getElementById('filter-view-icon-list');
     var filterShuffle    = document.getElementById('filter-shuffle-btn');
     var curateBtnEl      = document.getElementById('filter-curate-btn');
     var selectionBar     = document.getElementById('selection-action-bar');
@@ -222,6 +225,31 @@
         filterTabs.appendChild(btn);
       });
     }
+
+    // ── View mode (grid / compact) ───────────────────────────────
+    var viewMode = localStorage.getItem('rl-view') || 'grid';
+
+    function applyViewMode() {
+      if (viewMode === 'compact') {
+        linksGrid.classList.add('links-grid--compact');
+        filterViewIconGrid.style.display = 'none';
+        filterViewIconList.style.display = '';
+        filterViewBtn.title = 'Switch to grid view';
+      } else {
+        linksGrid.classList.remove('links-grid--compact');
+        filterViewIconGrid.style.display = '';
+        filterViewIconList.style.display = 'none';
+        filterViewBtn.title = 'Switch to compact view';
+      }
+    }
+
+    filterViewBtn.addEventListener('click', function () {
+      viewMode = viewMode === 'grid' ? 'compact' : 'grid';
+      localStorage.setItem('rl-view', viewMode);
+      applyViewMode();
+    });
+
+    applyViewMode();
 
     // ── Shuffle ──────────────────────────────────────────────────
     filterShuffle.addEventListener('click', function () {

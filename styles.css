@@ -2052,6 +2052,107 @@ body.glitch-active::after {
   flex-shrink: 0;
 }
 
+/* View toggle button */
+.filter-view-btn {
+  padding: 0.3rem 0.55rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: border-color var(--transition), color var(--transition);
+}
+.filter-view-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* Compact list view */
+.links-grid--compact {
+  grid-template-columns: 1fr;
+  gap: 0.35rem;
+}
+
+.links-grid--compact .link-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: 1fr;
+  align-items: center;
+  gap: 0 0.85rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--radius-sm);
+  min-height: 0;
+}
+
+/* Hide image block in compact mode */
+.links-grid--compact .link-card > a:first-of-type {
+  display: none;
+}
+
+/* Favicon + domain header — compact */
+.links-grid--compact .link-card-header {
+  padding: 0;
+  border-bottom: none;
+  flex-shrink: 0;
+  gap: 0.4rem;
+}
+
+.links-grid--compact .link-card-domain {
+  display: none;
+}
+
+/* Body — compact: single row */
+.links-grid--compact .link-card-body {
+  padding: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.links-grid--compact .link-card-title {
+  font-size: 0.88rem;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.links-grid--compact .link-card-description,
+.links-grid--compact .link-card-note {
+  display: none;
+}
+
+.links-grid--compact .link-card-meta {
+  margin: 0;
+  flex-shrink: 0;
+  gap: 0.5rem;
+}
+
+/* Hide stars in compact (keep tag + date) */
+.links-grid--compact .star-display {
+  display: none;
+}
+
+/* Actions overlay — compact */
+.links-grid--compact .link-card-actions {
+  top: 0.3rem;
+  right: 0.4rem;
+}
+
+.links-grid--compact .link-card-unread-badge {
+  top: 0.3rem;
+  left: 0.4rem;
+}
+
 /* Shuffle button */
 .filter-shuffle-btn {
   padding: 0.3rem 0.55rem;
