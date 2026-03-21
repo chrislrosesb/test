@@ -532,25 +532,32 @@
       }
       fetchStatus.style.color = 'var(--color-text-dim)';
       fetchStatus.textContent = 'Fetching\u2026';
-      fetch('https://itunes.apple.com/lookup?id=' + match[1])
-        .then(function (res) { return res.json(); })
-        .then(function (data) {
-          if (!data.results || !data.results.length) {
-            fetchStatus.style.color = '#f85149';
-            fetchStatus.textContent = 'Podcast not found.';
-            return;
-          }
-          var r = data.results[0];
-          document.getElementById('pod-name').value    = r.collectionName || r.trackName || '';
-          document.getElementById('pod-author').value  = r.artistName || '';
-          document.getElementById('pod-artwork').value = r.artworkUrl600 || r.artworkUrl100 || '';
-          fetchStatus.style.color = 'var(--color-accent)';
-          fetchStatus.textContent = '\u2713 Fetched — review and save';
-        })
-        .catch(function (err) {
+      // Use JSONP to avoid CORS restrictions on the iTunes API
+      var cbName = '_itunesCb' + Date.now();
+      var script = document.createElement('script');
+      script.src = 'https://itunes.apple.com/lookup?id=' + match[1] + '&callback=' + cbName;
+      window[cbName] = function (data) {
+        delete window[cbName];
+        document.head.removeChild(script);
+        if (!data.results || !data.results.length) {
           fetchStatus.style.color = '#f85149';
-          fetchStatus.textContent = 'Fetch failed: ' + err.message;
-        });
+          fetchStatus.textContent = 'Podcast not found.';
+          return;
+        }
+        var r = data.results[0];
+        document.getElementById('pod-name').value    = r.collectionName || r.trackName || '';
+        document.getElementById('pod-author').value  = r.artistName || '';
+        document.getElementById('pod-artwork').value = r.artworkUrl600 || r.artworkUrl100 || '';
+        fetchStatus.style.color = 'var(--color-accent)';
+        fetchStatus.textContent = '\u2713 Fetched \u2014 review and save';
+      };
+      script.onerror = function () {
+        delete window[cbName];
+        document.head.removeChild(script);
+        fetchStatus.style.color = '#f85149';
+        fetchStatus.textContent = 'Fetch failed \u2014 check the URL and try again.';
+      };
+      document.head.appendChild(script);
     }
 
     function savePodcast() {
