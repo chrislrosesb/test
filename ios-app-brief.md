@@ -169,6 +169,52 @@ A dedicated screen showing un-enriched articles as a swipeable card stack:
 
 ---
 
+## Article Reading — Three Modes
+
+Three reading modes, offered via a **Reader | Web** toggle in the toolbar. A smart fallback chain picks the best available mode automatically.
+
+### Fallback chain (automatic)
+```
+Tap to read
+    ↓
+Pre-fetched content in Supabase? → Reader view (instant, fully offline)
+    ↓ not available
+Fetch + parse with Readability?  → Reader view (clean, no ads)
+    ↓ fails (paywall / JS-heavy / blocked)
+Full WebKit view                 → always works
+```
+
+### Mode 1 — Full WebKit (WKWebView)
+Full webpage rendered inside the app. No leaving to Safari.
+- **Pros:** Always works, supports paywalls, renders exactly as intended
+- **Cons:** Slow on heavy pages, ads load, no typography control
+- **Effort:** Trivial — SwiftUI `WebView` is a few lines
+
+### Mode 2 — Reader View (Readability)
+Strips the page to article text + images, rendered in clean customisable typography. Same algorithm used by Safari Reader, Reeder, Instapaper, Pocket.
+- Uses the open-source **Readability.js** (Mozilla) bundled inside a hidden WKWebView, or a Swift package equivalent
+- **Pros:** Fast, clean, beautiful, no ads, your typography
+- **Cons:** Fails on paywalled/JS-heavy sites — falls back to WebKit automatically
+- **Effort:** Medium — integrate Readability library, handle failures
+
+### Mode 3 — Pre-fetched (RSS-style, fastest)
+Article text fetched and stored in Supabase at save time, not read time. Loads instantly, works fully offline.
+- Requires a **Supabase Edge Function** that runs Readability on the URL when an article is saved and stores extracted text in a new `content` column on the `links` table
+- Content is frozen at save time (doesn't update if article changes later)
+- **Effort:** Medium-high — Edge Function + new DB column + UI
+
+### Reader typography controls
+When in Reader or Pre-fetched mode, expose a typography panel (common in RSS apps):
+- Font size (slider)
+- Line height
+- Font choice: sans-serif (Inter/system) vs serif (New York)
+- Theme: Dark / Light / Sepia
+
+### Implementation note
+Build Mode 1 first (trivial), Mode 2 second (most useful day-to-day), Mode 3 last (nicest but requires backend work). The Reader/Web toggle in the toolbar lets the user override the automatic fallback at any time.
+
+---
+
 ## Development Setup (on the new Mac)
 
 1. Install **Xcode 26** from the Mac App Store (~15GB)
@@ -195,7 +241,7 @@ A dedicated screen showing un-enriched articles as a swipeable card stack:
 ### Phase 1 — Read-only viewer
 - Supabase fetch, display links in a list
 - Basic filter by status and category
-- Tap to open in WebView
+- Tap to open articles using the smart reader (see Article Reading section below)
 - iOS 26 design: Liquid Glass cards, floating tab bar
 
 ### Phase 2 — Enrich
