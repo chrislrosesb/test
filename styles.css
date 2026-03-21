@@ -344,6 +344,28 @@ main {
 
 .section-header h2 { margin-bottom: 0.75rem; }
 
+/* Page hero — top-of-page title block */
+.page-hero {
+  padding: 4rem 0 2.5rem;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 1rem;
+}
+
+.page-hero h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 700;
+  line-height: 1.15;
+  margin-bottom: 0.75rem;
+}
+
+.page-hero__sub {
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  max-width: 55ch;
+  line-height: 1.65;
+  margin: 0;
+}
+
 /* Tag / Badge */
 .tag {
   display: inline-block;
