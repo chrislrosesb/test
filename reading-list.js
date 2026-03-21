@@ -218,28 +218,28 @@
       });
     }
 
-    // ── View mode (feed / compact) ───────────────────────────────
+    // ── View mode (feed / grid) ──────────────────────────────────
     var viewMode = localStorage.getItem('rl-view') || 'feed';
-    if (viewMode === 'grid') viewMode = 'feed'; // backwards compat
+    if (viewMode === 'compact') viewMode = 'feed'; // backwards compat
 
     function applyViewMode() {
-      if (viewMode === 'compact') {
+      if (viewMode === 'grid') {
         linksGrid.classList.remove('links-grid--feed');
-        linksGrid.classList.add('links-grid--compact');
+        linksGrid.classList.add('links-grid--grid');
         filterViewIconGrid.style.display = 'none';
         filterViewIconList.style.display = '';
-        filterViewBtn.title = 'Switch to feed view';
+        filterViewBtn.title = 'Switch to list view';
       } else {
         linksGrid.classList.add('links-grid--feed');
-        linksGrid.classList.remove('links-grid--compact');
+        linksGrid.classList.remove('links-grid--grid');
         filterViewIconGrid.style.display = '';
         filterViewIconList.style.display = 'none';
-        filterViewBtn.title = 'Switch to compact view';
+        filterViewBtn.title = 'Switch to grid view';
       }
     }
 
     filterViewBtn.addEventListener('click', function () {
-      viewMode = viewMode === 'feed' ? 'compact' : 'feed';
+      viewMode = viewMode === 'feed' ? 'grid' : 'feed';
       localStorage.setItem('rl-view', viewMode);
       applyViewMode();
     });
