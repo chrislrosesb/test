@@ -46,7 +46,14 @@ struct ArticleDetailView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 20)
 
-                    // Note
+                    // AI Summary (read-only)
+                    if let summary = currentLink.summary, !summary.isEmpty {
+                        summarySection(summary)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 20)
+                    }
+
+                    // Note (user's personal notes)
                     noteSection
                         .padding(.horizontal, 16)
                         .padding(.top, 20)
@@ -285,6 +292,24 @@ struct ArticleDetailView: View {
         }
         .buttonStyle(.plain)
         .animation(.spring(duration: 0.25, bounce: 0.5), value: currentLink.status)
+    }
+
+    // MARK: - AI Summary
+
+    func summarySection(_ summary: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("AI Summary", systemImage: "sparkles")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.purple)
+
+            Text(summary)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.purple.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
     }
 
     // MARK: - Note

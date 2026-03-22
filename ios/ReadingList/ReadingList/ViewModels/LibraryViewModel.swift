@@ -42,7 +42,7 @@ final class LibraryViewModel {
         if !searchQuery.isEmpty {
             let tokens = searchQuery.lowercased().split(separator: " ").map(String.init)
             result = result.filter { link in
-                let haystack = [link.title, link.description, link.note, link.domain, link.category, link.tags]
+                let haystack = [link.title, link.description, link.note, link.summary, link.domain, link.category, link.tags]
                     .compactMap { $0 }.joined(separator: " ").lowercased()
                 return tokens.allSatisfy { haystack.contains($0) }
             }
@@ -125,6 +125,7 @@ final class LibraryViewModel {
             if let idx = allLinks.firstIndex(where: { $0.id == link.id }) {
                 if let t = fields["title"] as? String { allLinks[idx].title = t }
                 if let n = fields["note"] as? String { allLinks[idx].note = n.isEmpty ? nil : n }
+                if let s = fields["summary"] as? String { allLinks[idx].summary = s.isEmpty ? nil : s }
                 if let ta = fields["tags"] as? String { allLinks[idx].tags = ta.isEmpty ? nil : ta }
                 if let c = fields["category"] as? String { allLinks[idx].category = c.isEmpty ? nil : c }
                 if let s = fields["status"] as? String {
@@ -270,7 +271,7 @@ final class LibraryViewModel {
         var scored: [(link: Link, score: Int)] = []
 
         for link in allLinks {
-            let haystack = [link.title, link.description, link.note, link.domain, link.category, link.tags]
+            let haystack = [link.title, link.description, link.note, link.summary, link.domain, link.category, link.tags]
                 .compactMap { $0 }.joined(separator: " ").lowercased()
 
             // Count how many keywords match

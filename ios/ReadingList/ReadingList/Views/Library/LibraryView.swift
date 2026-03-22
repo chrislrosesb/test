@@ -43,7 +43,7 @@ struct LibraryView: View {
         if !vm.searchQuery.isEmpty {
             let tokens = vm.searchQuery.lowercased().split(separator: " ").map(String.init)
             result = result.filter { link in
-                let haystack = [link.title, link.description, link.note, link.domain, link.category, link.tags]
+                let haystack = [link.title, link.description, link.note, link.summary, link.domain, link.category, link.tags]
                     .compactMap { $0 }.joined(separator: " ").lowercased()
                 return tokens.allSatisfy { haystack.contains($0) }
             }
@@ -172,6 +172,35 @@ struct LibraryView: View {
                         selectedIndex = index
                         selectedLink = link
                     }
+                }
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    Button {
+                        Task { await vm.updateStatus(link: link, status: link.status == "done" ? nil : "done") }
+                    } label: {
+                        Label(link.status == "done" ? "Undo" : "Done", systemImage: link.status == "done" ? "arrow.uturn.backward" : "checkmark")
+                    }
+                    .tint(.green)
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) {
+                        Task { await vm.delete(link: link) }
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                    Menu {
+                        Button { Task { await vm.updateStatus(link: link, status: "to-read") } } label: {
+                            Label("To Read", systemImage: "book")
+                        }
+                        Button { Task { await vm.updateStatus(link: link, status: "to-try") } } label: {
+                            Label("To Do", systemImage: "hammer")
+                        }
+                        Button { Task { await vm.updateStatus(link: link, status: "done") } } label: {
+                            Label("Done", systemImage: "checkmark.circle")
+                        }
+                    } label: {
+                        Label("Status", systemImage: "tag")
+                    }
+                    .tint(.blue)
                 }
                 .contextMenu { if !isCurating { contextMenu(for: link) } }
                 .listRowSeparator(.hidden)

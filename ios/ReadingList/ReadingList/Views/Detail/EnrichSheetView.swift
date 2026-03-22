@@ -131,7 +131,7 @@ struct EnrichSheetView: View {
                 enrichRow(
                     icon: "text.alignleft",
                     label: "Summary",
-                    original: link.note,
+                    original: link.summary,
                     suggestion: s.summary,
                     isAccepted: $acceptSummary
                 )
@@ -252,8 +252,8 @@ struct EnrichSheetView: View {
             updatedLink.title = s.cleanTitle
         }
         if acceptSummary && !s.summary.isEmpty {
-            fields["note"] = s.summary
-            updatedLink.note = s.summary
+            fields["summary"] = s.summary
+            updatedLink.summary = s.summary
         }
         if acceptTags && !s.tags.isEmpty {
             let merged = mergeTags(existing: link.tags, new: s.tags)

@@ -11,6 +11,7 @@ struct ArticleReaderContainer: View {
     @State private var currentIndex: Int
     @State private var showInfo = false
     @State private var showTypography = false
+    @State private var showFinished = false
     @State private var isReaderMode = false
 
     @AppStorage("readerFontSize") private var fontSize: Double = 17
@@ -37,9 +38,15 @@ struct ArticleReaderContainer: View {
                 .gesture(swipeGesture)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    // Leading: close
+                    // Leading: close (with "finished?" prompt if not done)
                     ToolbarItem(placement: .topBarLeading) {
-                        Button { dismiss() } label: {
+                        Button {
+                            if currentLink.status != "done" {
+                                showFinished = true
+                            } else {
+                                dismiss()
+                            }
+                        } label: {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 17, weight: .medium))
                         }
@@ -92,6 +99,12 @@ struct ArticleReaderContainer: View {
         }
         .sheet(isPresented: $showTypography) {
             TypographySheet()
+        }
+        .sheet(isPresented: $showFinished) {
+            FinishedReadingSheet(link: currentLink, vm: vm) {
+                showFinished = false
+                dismiss()
+            }
         }
     }
 
