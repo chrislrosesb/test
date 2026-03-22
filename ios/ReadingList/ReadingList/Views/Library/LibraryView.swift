@@ -30,6 +30,27 @@ struct LibraryView: View {
             ArticleDetailView(link: link)
                 .environment(vm)
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let error = vm.errorMessage {
+                HStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .font(.caption)
+                        .lineLimit(2)
+                    Spacer()
+                    Button { vm.errorMessage = nil } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.regularMaterial)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(duration: 0.35), value: vm.errorMessage)
         .onAppear {
             withAnimation(.spring(duration: 0.6, bounce: 0.3).delay(0.1)) {
                 appeared = true

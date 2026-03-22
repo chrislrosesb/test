@@ -3,16 +3,43 @@ import SwiftUI
 struct ArticleCardView: View {
     let link: Link
 
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            cardBackground
-                .frame(height: 220)
+    private let cardHeight: CGFloat = 270
+    private let cornerRadius: CGFloat = 28
 
-            cardOverlay
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            // Layer 1: Background
+            cardBackground
+
+            // Layer 2: Gradient scrim (bottom 55%)
+            VStack {
+                Spacer()
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black.opacity(0.72), location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: cardHeight * 0.58)
+            }
+
+            // Layer 3: Bottom text
+            VStack {
+                Spacer()
+                bottomContent
+            }
+
+            // Layer 4: Status badge (top-left, only if status set)
+            if let status = link.status {
+                StatusBadge(status: status)
+                    .padding(14)
+            }
         }
-        .frame(height: 220)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 6)
+        .frame(height: cardHeight)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .shadow(color: .black.opacity(0.22), radius: 14, x: 0, y: 7)
     }
 
     // MARK: - Background
@@ -33,7 +60,6 @@ struct ArticleCardView: View {
         }
     }
 
-    @ViewBuilder
     var fallbackBackground: some View {
         ZStack {
             LinearGradient(
@@ -43,95 +69,92 @@ struct ArticleCardView: View {
             )
             if let first = link.domain?.first {
                 Text(String(first).uppercased())
-                    .font(.system(size: 72, weight: .black, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.18))
+                    .font(.system(size: 96, weight: .black, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.15))
             }
         }
     }
 
-    // MARK: - Overlay
+    // MARK: - Bottom text
 
-    @ViewBuilder
-    var cardOverlay: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Title
+    var bottomContent: some View {
+        VStack(spacing: 5) {
             Text(link.title ?? link.url)
-                .font(.headline)
-                .lineLimit(2)
+                .font(.title3)
+                .fontWeight(.bold)
                 .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .shadow(color: .black.opacity(0.35), radius: 4, x: 0, y: 2)
 
-            // Meta row
-            HStack(spacing: 6) {
-                faviconAndDomain
-
-                Spacer()
-
-                if let stars = link.stars, stars > 0 {
-                    starRow(stars: stars)
-                }
-
-                if let status = link.status {
-                    StatusPill(status: status)
-                }
-            }
-
-            // Tags
-            if let tags = link.tags, !tags.isEmpty {
-                Text(tags)
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.75))
-                    .lineLimit(1)
-            }
-
-            // Note preview
-            if let note = link.note, !note.isEmpty {
-                Text(note)
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.8))
-                    .lineLimit(2)
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background { glassOverlay }
-    }
-
-    @ViewBuilder
-    var glassOverlay: some View {
-        if #available(iOS 26, *) {
-            Rectangle().glassEffect(.regular)
-        } else {
-            Rectangle().fill(.ultraThinMaterial)
-        }
-    }
-
-    @ViewBuilder
-    var faviconAndDomain: some View {
-        HStack(spacing: 5) {
-            if let rawFavicon = link.favicon, let faviconURL = URL(string: rawFavicon) {
-                AsyncImage(url: faviconURL) { phase in
-                    if case .success(let img) = phase {
-                        img.resizable()
-                            .frame(width: 14, height: 14)
-                            .clipShape(RoundedRectangle(cornerRadius: 3))
+            HStack(spacing: 5) {
+                if let rawFavicon = link.favicon, let faviconURL = URL(string: rawFavicon) {
+                    AsyncImage(url: faviconURL) { phase in
+                        if case .success(let img) = phase {
+                            img.resizable()
+                                .frame(width: 14, height: 14)
+                                .clipShape(Circle())
+                        }
                     }
                 }
+                if let domain = link.domain {
+                    Text(domain)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.78))
+                }
             }
-            if let domain = link.domain {
-                Text(domain)
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.8))
-            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 18)
+        .padding(.bottom, 20)
+    }
+}
+
+// MARK: - Status Badge (Apple Invites "Hosting" pill style)
+
+struct StatusBadge: View {
+    let status: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+            Text(label)
+                .font(.caption)
+                .fontWeight(.semibold)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background { badgeBackground }
+        .foregroundStyle(.white)
+    }
+
+    @ViewBuilder
+    var badgeBackground: some View {
+        if #available(iOS 26, *) {
+            Capsule().glassEffect(.regular)
+        } else {
+            Capsule().fill(.ultraThinMaterial)
         }
     }
 
-    func starRow(stars: Int) -> some View {
-        HStack(spacing: 2) {
-            ForEach(1...5, id: \.self) { i in
-                Image(systemName: i <= stars ? "star.fill" : "star")
-                    .font(.system(size: 9))
-                    .foregroundStyle(i <= stars ? .yellow : .white.opacity(0.4))
-            }
+    var label: String {
+        switch status {
+        case "to-read": return "To Read"
+        case "to-try": return "To Try"
+        case "to-share": return "To Share"
+        case "done": return "Done"
+        default: return status
+        }
+    }
+
+    var icon: String {
+        switch status {
+        case "to-read": return "book"
+        case "to-try": return "hammer"
+        case "to-share": return "paperplane"
+        case "done": return "checkmark.circle"
+        default: return "circle"
         }
     }
 }

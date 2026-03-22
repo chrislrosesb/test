@@ -42,24 +42,21 @@ final class LibraryViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            async let links = SupabaseClient.shared.fetchLinks()
-            async let cats = SupabaseClient.shared.fetchCategories()
-            (allLinks, categories) = try await (links, cats)
+            allLinks = try await SupabaseClient.shared.fetchLinks()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = "Links: \(error.localizedDescription)"
+        }
+        do {
+            categories = try await SupabaseClient.shared.fetchCategories()
+        } catch {
+            let catError = "Categories: \(error.localizedDescription)"
+            errorMessage = errorMessage == nil ? catError : errorMessage! + "\n" + catError
         }
         isLoading = false
     }
 
     func refresh() async {
-        errorMessage = nil
-        do {
-            async let links = SupabaseClient.shared.fetchLinks()
-            async let cats = SupabaseClient.shared.fetchCategories()
-            (allLinks, categories) = try await (links, cats)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        await load()
     }
 
     // MARK: - Updates
@@ -69,7 +66,7 @@ final class LibraryViewModel {
         var fields: [String: Any] = ["read": read]
         fields["status"] = status ?? NSNull()
         do {
-            try await SupabaseClient.shared.updateLink(id: link.id.uuidString.lowercased(), fields: fields)
+            try await SupabaseClient.shared.updateLink(id: link.id, fields: fields)
             if let idx = allLinks.firstIndex(where: { $0.id == link.id }) {
                 allLinks[idx].status = status
                 allLinks[idx].read = read
@@ -81,7 +78,7 @@ final class LibraryViewModel {
 
     func updateStars(link: Link, stars: Int) async {
         do {
-            try await SupabaseClient.shared.updateLink(id: link.id.uuidString.lowercased(), fields: ["stars": stars])
+            try await SupabaseClient.shared.updateLink(id: link.id, fields: ["stars": stars])
             if let idx = allLinks.firstIndex(where: { $0.id == link.id }) {
                 allLinks[idx].stars = stars
             }
@@ -92,7 +89,7 @@ final class LibraryViewModel {
 
     func updateNote(link: Link, note: String) async {
         do {
-            try await SupabaseClient.shared.updateLink(id: link.id.uuidString.lowercased(), fields: ["note": note])
+            try await SupabaseClient.shared.updateLink(id: link.id, fields: ["note": note])
             if let idx = allLinks.firstIndex(where: { $0.id == link.id }) {
                 allLinks[idx].note = note.isEmpty ? nil : note
             }
@@ -103,7 +100,7 @@ final class LibraryViewModel {
 
     func delete(link: Link) async {
         do {
-            try await SupabaseClient.shared.deleteLink(id: link.id.uuidString.lowercased())
+            try await SupabaseClient.shared.deleteLink(id: link.id)
             allLinks.removeAll { $0.id == link.id }
         } catch {
             errorMessage = error.localizedDescription

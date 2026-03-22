@@ -12,12 +12,14 @@ private enum Config {
 enum SupabaseError: LocalizedError {
     case auth(String)
     case fetch
+    case decode(String)
     case update
 
     var errorDescription: String? {
         switch self {
         case .auth(let msg): return msg
         case .fetch: return "Failed to load articles."
+        case .decode(let detail): return "Decode error: \(detail)"
         case .update: return "Failed to save changes."
         }
     }
@@ -114,9 +116,17 @@ final class SupabaseClient {
         }
         let (data, response) = try await URLSession.shared.data(for: req)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8) ?? "no body"
             throw SupabaseError.fetch
         }
-        return try decoder.decode(T.self, from: data)
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            let raw = String(data: data, encoding: .utf8) ?? "unreadable"
+            print("❌ Decode error for \(T.self): \(error)")
+            print("❌ Raw JSON: \(raw.prefix(500))")
+            throw SupabaseError.decode(error.localizedDescription + " | Raw: " + raw.prefix(200))
+        }
     }
 
     // MARK: - Write

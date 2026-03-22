@@ -1,7 +1,7 @@
 import Foundation
 
 struct Link: Codable, Identifiable {
-    let id: UUID
+    let id: String
     var url: String
     var title: String?
     var description: String?
