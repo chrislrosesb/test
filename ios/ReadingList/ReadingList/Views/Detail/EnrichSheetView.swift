@@ -297,9 +297,16 @@ struct EnrichSuggestions {
 
 // MARK: - EnrichError
 
-enum EnrichError: Error {
+enum EnrichError: LocalizedError {
     case unavailable
-    case parseFailure
+    case parseFailure(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .unavailable: return "Apple Intelligence is not available."
+        case .parseFailure(let raw): return "Could not parse AI response: \(raw.prefix(200))"
+        }
+    }
 }
 
 // MARK: - EnrichEngine (Foundation Models)
@@ -337,26 +344,51 @@ enum EnrichEngine {
         do {
             let session = LanguageModelSession()
             let response = try await session.respond(to: prompt)
-            let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            var text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+            if text.hasPrefix("```") {
+                // Remove opening fence (```json or ```)
+                if let firstNewline = text.firstIndex(of: "\n") {
+                    text = String(text[text.index(after: firstNewline)...])
+                }
+                // Remove closing fence
+                if text.hasSuffix("```") {
+                    text = String(text.dropLast(3))
+                }
+                text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            // Try to find JSON object in the response
+            if let start = text.firstIndex(of: "{"),
+               let end = text.lastIndex(of: "}") {
+                text = String(text[start...end])
+            }
 
             guard let data = text.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: String] else {
-                throw EnrichError.parseFailure
+                  let rawJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw EnrichError.parseFailure(text)
+            }
+
+            // Convert any value to String
+            func str(_ key: String) -> String {
+                if let s = rawJson[key] as? String { return s }
+                if let n = rawJson[key] as? NSNumber { return n.stringValue }
+                return ""
             }
 
             return EnrichSuggestions(
-                cleanTitle: json["cleanTitle"] ?? link.title ?? "",
-                summary: json["summary"] ?? "",
-                tags: json["tags"] ?? "",
-                category: json["category"] ?? "",
-                status: json["status"] ?? "to-read"
+                cleanTitle: str("cleanTitle").isEmpty ? (link.title ?? "") : str("cleanTitle"),
+                summary: str("summary"),
+                tags: str("tags"),
+                category: str("category"),
+                status: str("status").isEmpty ? "to-read" : str("status")
             )
         } catch let error as EnrichError {
             throw error
         } catch {
-            // LanguageModelSession throws if Apple Intelligence unavailable
-            if error.localizedDescription.lowercased().contains("available") ||
-               error.localizedDescription.lowercased().contains("support") {
+            let desc = error.localizedDescription.lowercased()
+            if desc.contains("available") || desc.contains("support") || desc.contains("not supported") {
                 throw EnrichError.unavailable
             }
             throw error
