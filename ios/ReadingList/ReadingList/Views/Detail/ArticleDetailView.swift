@@ -57,6 +57,17 @@ struct ArticleDetailView: View {
                             .padding(.top, 20)
                     }
 
+                    // Duplicate warning
+                    if !vm.duplicatesOf(currentLink).isEmpty {
+                        duplicateNotice
+                            .padding(.horizontal, 16)
+                            .padding(.top, 20)
+                    }
+
+                    // Related articles
+                    relatedSection
+                        .padding(.top, 20)
+
                     Spacer(minLength: 40)
                 }
                 .padding(.bottom, 20)
@@ -349,6 +360,83 @@ struct ArticleDetailView: View {
                         .textCase(.uppercase)
                     FlowLayout(tags: tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
                 }
+            }
+        }
+    }
+
+    // MARK: - Duplicate Notice
+
+    var duplicateNotice: some View {
+        let dupes = vm.duplicatesOf(currentLink)
+        return VStack(alignment: .leading, spacing: 6) {
+            Label("Possible Duplicate", systemImage: "exclamationmark.triangle.fill")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.orange)
+            ForEach(dupes) { dupe in
+                Text(dupe.title ?? dupe.url)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    // MARK: - Related Articles
+
+    var relatedSection: some View {
+        let related = vm.relatedArticles(for: currentLink)
+        return Group {
+            if !related.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Related")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+                        .padding(.horizontal, 16)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(related) { link in
+                                relatedCard(link: link)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                }
+            }
+        }
+    }
+
+    func relatedCard(link: Link) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Thumbnail
+            if let rawURL = link.image, let imageURL = URL(string: rawURL) {
+                AsyncImage(url: imageURL) { phase in
+                    if case .success(let img) = phase {
+                        img.resizable().aspectRatio(contentMode: .fill)
+                    } else {
+                        Color(.systemGray5)
+                    }
+                }
+                .frame(width: 140, height: 80)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+
+            Text(link.title ?? link.domain ?? "Article")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .lineLimit(2)
+                .frame(width: 140, alignment: .leading)
+
+            if let domain = link.domain {
+                Text(domain)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
         }
     }

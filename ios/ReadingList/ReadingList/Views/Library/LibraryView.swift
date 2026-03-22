@@ -34,7 +34,20 @@ struct LibraryView: View {
         }
         // Filter sheet removed — now uses inline Menu popover
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let error = vm.errorMessage {
+            if let progress = vm.enrichAllProgress {
+                HStack(spacing: 12) {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Enriching \(progress.current) of \(progress.total)…")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.regularMaterial)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if let error = vm.errorMessage {
                 HStack(spacing: 12) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
@@ -243,6 +256,19 @@ struct LibraryView: View {
                         vm.sortByStars = true
                     } label: {
                         Label("Highest Rated", systemImage: vm.sortByStars ? "checkmark" : "star.fill")
+                    }
+                }
+
+                // Enrich All
+                if !vm.unenrichedLinks.isEmpty {
+                    Section("AI") {
+                        Button {
+                            if #available(iOS 26, *) {
+                                Task { await vm.enrichAll() }
+                            }
+                        } label: {
+                            Label("Enrich All (\(vm.unenrichedLinks.count))", systemImage: "sparkles")
+                        }
                     }
                 }
 
