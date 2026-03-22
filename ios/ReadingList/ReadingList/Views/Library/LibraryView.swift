@@ -12,6 +12,7 @@ struct LibraryView: View {
     @State private var appeared = true
     @State private var showProfile = false
     @State private var showSources = false
+    @State private var showDigest = false
     @State private var isCurating = false
     @State private var curateSelection: Set<String> = []
     @State private var showCurateSheet = false
@@ -82,6 +83,10 @@ struct LibraryView: View {
         }
         .sheet(isPresented: $showSources) {
             SourcesView()
+                .environment(vm)
+        }
+        .sheet(isPresented: $showDigest) {
+            DigestView()
                 .environment(vm)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -313,6 +318,11 @@ struct LibraryView: View {
     var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
             Menu {
+                // Today's Digest
+                Button { showDigest = true } label: {
+                    Label("Today's Reading", systemImage: "sun.max")
+                }
+
                 // Sources
                 Button { showSources = true } label: {
                     Label("Sources", systemImage: "globe")
