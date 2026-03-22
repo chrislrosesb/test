@@ -138,7 +138,7 @@ struct WebReaderView: View {
             }
         }
         .sheet(isPresented: $showTypography) {
-            TypographySheet(fontSize: $fontSize, fontRaw: $fontRaw, themeRaw: $themeRaw)
+            TypographySheet()
         }
     }
 }
@@ -146,10 +146,22 @@ struct WebReaderView: View {
 // MARK: - Typography Sheet
 
 struct TypographySheet: View {
-    @Binding var fontSize: Double
-    @Binding var fontRaw: String
-    @Binding var themeRaw: String
+    @AppStorage("readerFontSize") private var fontSize: Double = 17
+    @AppStorage("readerFont") private var fontRaw: String = ReaderFont.system.rawValue
+    @AppStorage("readerTheme") private var themeRaw: String = ReaderTheme.dark.rawValue
     @Environment(\.dismiss) private var dismiss
+
+    private let fonts: [(ReaderFont, Font)] = [
+        (.system, .body),
+        (.serif, .custom("Georgia", size: 17)),
+        (.mono, .system(.body, design: .monospaced))
+    ]
+
+    private let themes: [(ReaderTheme, String)] = [
+        (.dark, "#1c1c1e"),
+        (.light, "#ffffff"),
+        (.sepia, "#f5ead8")
+    ]
 
     var body: some View {
         NavigationStack {
@@ -170,45 +182,15 @@ struct TypographySheet: View {
                 }
 
                 Section("Font") {
-                    ForEach(ReaderFont.allCases) { f in
-                        Button {
-                            fontRaw = f.rawValue
-                        } label: {
-                            HStack {
-                                Text(f.label)
-                                    .font(fontPreview(f))
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                if fontRaw == f.rawValue {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(.accentColor)
-                                        .fontWeight(.semibold)
-                                }
-                            }
-                        }
-                    }
+                    fontRow(.system, preview: .body)
+                    fontRow(.serif, preview: .custom("Georgia", size: 17))
+                    fontRow(.mono, preview: .system(.body, design: .monospaced))
                 }
 
                 Section("Theme") {
-                    ForEach(ReaderTheme.allCases) { t in
-                        Button {
-                            themeRaw = t.rawValue
-                        } label: {
-                            HStack {
-                                Circle()
-                                    .fill(Color(hex: t.background))
-                                    .frame(width: 22, height: 22)
-                                    .overlay(Circle().strokeBorder(.secondary.opacity(0.3), lineWidth: 1))
-                                Text(t.label).foregroundStyle(.primary)
-                                Spacer()
-                                if themeRaw == t.rawValue {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(.accentColor)
-                                        .fontWeight(.semibold)
-                                }
-                            }
-                        }
-                    }
+                    themeRow(.dark)
+                    themeRow(.light)
+                    themeRow(.sepia)
                 }
             }
             .navigationTitle("Typography")
@@ -223,11 +205,41 @@ struct TypographySheet: View {
         .presentationDragIndicator(.visible)
     }
 
-    func fontPreview(_ f: ReaderFont) -> Font {
-        switch f {
-        case .system: return .body
-        case .serif: return .custom("Georgia", size: 17)
-        case .mono: return .system(.body, design: .monospaced)
+    func fontRow(_ f: ReaderFont, preview: Font) -> some View {
+        Button {
+            fontRaw = f.rawValue
+        } label: {
+            HStack {
+                Text(f.label)
+                    .font(preview)
+                    .foregroundStyle(.primary)
+                Spacer()
+                if fontRaw == f.rawValue {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Color.accentColor)
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+
+    func themeRow(_ t: ReaderTheme) -> some View {
+        Button {
+            themeRaw = t.rawValue
+        } label: {
+            HStack {
+                Circle()
+                    .fill(Color(hex: t.background))
+                    .frame(width: 22, height: 22)
+                    .overlay(Circle().strokeBorder(.secondary.opacity(0.3), lineWidth: 1))
+                Text(t.label).foregroundStyle(.primary)
+                Spacer()
+                if themeRaw == t.rawValue {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Color.accentColor)
+                        .fontWeight(.semibold)
+                }
+            }
         }
     }
 }
