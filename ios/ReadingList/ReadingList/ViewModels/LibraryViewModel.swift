@@ -237,85 +237,74 @@ final class LibraryViewModel {
         return u
     }
 
-    // MARK: - AI Search
+    // MARK: - AI Search (smart keyword matching)
 
     @available(iOS 26, *)
     func aiSearch(query: String) async {
-        #if canImport(FoundationModels)
+        await smartSearch(query: query)
+    }
+
+    /// Smart search: extract meaningful keywords from natural language,
+    /// then require ALL core terms to match (not just any one).
+    func smartSearch(query: String) async {
         guard !query.isEmpty else { aiSearchResults = nil; return }
 
-        // Step 1: Ask AI to expand the natural language query into search keywords
-        let prompt = """
-        The user wants to search their reading list library. Convert their natural language query into simple search keywords.
+        let q = query.lowercased()
 
-        User query: "\(query)"
+        // Strip common filler words to get the real search terms
+        let stopWords: Set<String> = [
+            "find", "me", "show", "get", "search", "for", "the", "a", "an",
+            "that", "are", "is", "about", "with", "from", "my", "i", "stories",
+            "story", "articles", "article", "links", "link", "ones", "some"
+        ]
 
-        Return ONLY a comma-separated list of lowercase search keywords/terms that would match relevant articles. Include synonyms and related terms. No explanation, just the keywords.
+        let rawTokens = q.split(separator: " ").map(String.init)
+        let keywords = rawTokens.filter { !stopWords.contains($0) && $0.count > 1 }
 
-        Example: "articles about AI I haven't read" → "ai, artificial intelligence, machine learning, llm, gpt, neural"
-        Example: "design tutorials" → "design, ui, ux, css, frontend, tutorial, guide, how to"
-        """
+        // Detect intent modifiers
+        let wantUnread = q.contains("unread") || q.contains("haven't read") || q.contains("not read")
+        let wantDone = q.contains("done") || q.contains("finished") || q.contains("completed")
+        let wantPodcast = q.contains("podcast")
 
-        do {
-            let session = LanguageModelSession()
-            let response = try await session.respond(to: prompt)
-            var text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Score each article: require at least one core keyword to match
+        var scored: [(link: Link, score: Int)] = []
 
-            // Strip markdown if present
-            if text.hasPrefix("```") { text = text.replacingOccurrences(of: "```", with: "") }
-            text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // Parse keywords
-            let keywords = text.split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-                .filter { !$0.isEmpty }
-
-            guard !keywords.isEmpty else {
-                aiSearchResults = []
-                return
-            }
-
-            // Step 2: Score each article by keyword matches
-            var scored: [(link: Link, score: Int)] = []
-            for link in allLinks {
-                let haystack = [link.title, link.description, link.note, link.domain, link.category, link.tags]
-                    .compactMap { $0 }.joined(separator: " ").lowercased()
-
-                var score = 0
-                for keyword in keywords {
-                    if haystack.contains(keyword) { score += 1 }
-                }
-
-                // Also check status-based queries
-                if query.lowercased().contains("unread") || query.lowercased().contains("haven't read") {
-                    if link.status != "done" { score += 1 }
-                }
-                if query.lowercased().contains("done") || query.lowercased().contains("finished") {
-                    if link.status == "done" { score += 2 }
-                }
-
-                if score > 0 { scored.append((link, score)) }
-            }
-
-            aiSearchResults = scored.sorted { $0.score > $1.score }.prefix(20).map(\.link)
-        } catch {
-            // Fallback: do simple keyword search with the original query
-            let tokens = query.lowercased().split(separator: " ").map(String.init)
-            aiSearchResults = allLinks.filter { link in
-                let haystack = [link.title, link.description, link.note, link.domain, link.category, link.tags]
-                    .compactMap { $0 }.joined(separator: " ").lowercased()
-                return tokens.contains { haystack.contains($0) }
-            }
-        }
-        #else
-        // No FoundationModels: fall back to keyword search
-        let tokens = query.lowercased().split(separator: " ").map(String.init)
-        aiSearchResults = allLinks.filter { link in
+        for link in allLinks {
             let haystack = [link.title, link.description, link.note, link.domain, link.category, link.tags]
                 .compactMap { $0 }.joined(separator: " ").lowercased()
-            return tokens.contains { haystack.contains($0) }
+
+            // Count how many keywords match
+            var matchCount = 0
+            for keyword in keywords {
+                if haystack.contains(keyword) { matchCount += 1 }
+            }
+
+            // Must match at least half of the non-modifier keywords, minimum 1
+            let coreKeywords = keywords.filter { !["unread", "done", "finished", "podcast", "podcasts"].contains($0) }
+            let requiredMatches = max(1, (coreKeywords.count + 1) / 2)
+
+            let coreMatches = coreKeywords.filter { haystack.contains($0) }.count
+            guard coreMatches >= requiredMatches else { continue }
+
+            var score = coreMatches * 10
+
+            // Boost/penalize by intent
+            if wantPodcast {
+                if haystack.contains("podcast") { score += 5 } else { continue }
+            }
+            if wantUnread && link.status == "done" { continue }
+            if wantDone && link.status != "done" { continue }
+
+            // Bonus for title matches (more relevant than tag/note matches)
+            let titleLower = (link.title ?? "").lowercased()
+            for keyword in coreKeywords {
+                if titleLower.contains(keyword) { score += 5 }
+            }
+
+            scored.append((link, score))
         }
-        #endif
+
+        aiSearchResults = scored.sorted { $0.score > $1.score }.prefix(20).map(\.link)
     }
 
     func clearAISearch() {

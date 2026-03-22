@@ -163,9 +163,7 @@ struct SearchView: View {
     func runAISearch() async {
         guard !aiQuery.isEmpty else { return }
         isSearching = true
-        if #available(iOS 26, *) {
-            await vm.aiSearch(query: aiQuery)
-        }
+        await vm.smartSearch(query: aiQuery)
         isSearching = false
     }
 }
