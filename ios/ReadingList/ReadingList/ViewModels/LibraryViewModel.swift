@@ -244,37 +244,76 @@ final class LibraryViewModel {
         #if canImport(FoundationModels)
         guard !query.isEmpty else { aiSearchResults = nil; return }
 
-        // Build a compact index of all articles
-        let index = allLinks.enumerated().map { (i, link) in
-            "\(i)|\(link.title ?? "")|\(link.domain ?? "")|\(link.tags ?? "")|\(link.category ?? "")|\(link.status ?? "")"
-        }.joined(separator: "\n")
-
+        // Step 1: Ask AI to expand the natural language query into search keywords
         let prompt = """
-        Given this library of saved articles (format: index|title|domain|tags|category|status):
-        \(index)
+        The user wants to search their reading list library. Convert their natural language query into simple search keywords.
 
         User query: "\(query)"
 
-        Return ONLY a comma-separated list of index numbers (0-based) of articles that match the query. Consider semantic meaning, not just keywords. Return at most 20 results, most relevant first. If nothing matches, return "none".
+        Return ONLY a comma-separated list of lowercase search keywords/terms that would match relevant articles. Include synonyms and related terms. No explanation, just the keywords.
+
+        Example: "articles about AI I haven't read" → "ai, artificial intelligence, machine learning, llm, gpt, neural"
+        Example: "design tutorials" → "design, ui, ux, css, frontend, tutorial, guide, how to"
         """
 
         do {
             let session = LanguageModelSession()
             let response = try await session.respond(to: prompt)
-            let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            var text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
 
-            if text.lowercased() == "none" {
+            // Strip markdown if present
+            if text.hasPrefix("```") { text = text.replacingOccurrences(of: "```", with: "") }
+            text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Parse keywords
+            let keywords = text.split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty }
+
+            guard !keywords.isEmpty else {
                 aiSearchResults = []
                 return
             }
 
-            let indices = text.split(separator: ",")
-                .compactMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
-                .filter { $0 >= 0 && $0 < allLinks.count }
+            // Step 2: Score each article by keyword matches
+            var scored: [(link: Link, score: Int)] = []
+            for link in allLinks {
+                let haystack = [link.title, link.description, link.note, link.domain, link.category, link.tags]
+                    .compactMap { $0 }.joined(separator: " ").lowercased()
 
-            aiSearchResults = indices.map { allLinks[$0] }
+                var score = 0
+                for keyword in keywords {
+                    if haystack.contains(keyword) { score += 1 }
+                }
+
+                // Also check status-based queries
+                if query.lowercased().contains("unread") || query.lowercased().contains("haven't read") {
+                    if link.status != "done" { score += 1 }
+                }
+                if query.lowercased().contains("done") || query.lowercased().contains("finished") {
+                    if link.status == "done" { score += 2 }
+                }
+
+                if score > 0 { scored.append((link, score)) }
+            }
+
+            aiSearchResults = scored.sorted { $0.score > $1.score }.prefix(20).map(\.link)
         } catch {
-            aiSearchResults = nil
+            // Fallback: do simple keyword search with the original query
+            let tokens = query.lowercased().split(separator: " ").map(String.init)
+            aiSearchResults = allLinks.filter { link in
+                let haystack = [link.title, link.description, link.note, link.domain, link.category, link.tags]
+                    .compactMap { $0 }.joined(separator: " ").lowercased()
+                return tokens.contains { haystack.contains($0) }
+            }
+        }
+        #else
+        // No FoundationModels: fall back to keyword search
+        let tokens = query.lowercased().split(separator: " ").map(String.init)
+        aiSearchResults = allLinks.filter { link in
+            let haystack = [link.title, link.description, link.note, link.domain, link.category, link.tags]
+                .compactMap { $0 }.joined(separator: " ").lowercased()
+            return tokens.contains { haystack.contains($0) }
         }
         #endif
     }

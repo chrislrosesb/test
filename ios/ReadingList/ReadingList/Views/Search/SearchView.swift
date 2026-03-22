@@ -19,28 +19,22 @@ struct SearchView: View {
         NavigationStack {
             Group {
                 if useAISearch {
-                    aiSearchContent
-                } else if vm.searchQuery.isEmpty {
-                    searchPlaceholder
-                } else if vm.filteredLinks.isEmpty {
-                    ContentUnavailableView.search(text: vm.searchQuery)
+                    aiSearchBody
                 } else {
-                    searchResultsList(links: vm.filteredLinks)
+                    keywordSearchBody
                 }
             }
             .navigationTitle("Search")
-            .searchable(text: $vm.searchQuery, placement: .navigationBarDrawer(displayMode: .always), prompt: useAISearch ? "Ask AI…" : "Search articles…")
-            .onSubmit(of: .search) {
-                if useAISearch {
-                    aiQuery = vm.searchQuery
-                    Task { await runAISearch() }
-                }
-            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        useAISearch.toggle()
-                        vm.clearAISearch()
+                        withAnimation(.spring(duration: 0.3)) {
+                            useAISearch.toggle()
+                            vm.clearAISearch()
+                            if !useAISearch {
+                                aiQuery = ""
+                            }
+                        }
                     } label: {
                         Image(systemName: useAISearch ? "sparkles" : "sparkle")
                             .foregroundStyle(useAISearch ? Color.purple : Color.primary)
@@ -55,10 +49,48 @@ struct SearchView: View {
         }
     }
 
-    // MARK: - AI Search Content
+    // MARK: - Keyword Search
 
-    var aiSearchContent: some View {
-        Group {
+    var keywordSearchBody: some View {
+        @Bindable var vm = vm
+        return Group {
+            if vm.searchQuery.isEmpty {
+                searchPlaceholder
+            } else if vm.filteredLinks.isEmpty {
+                ContentUnavailableView.search(text: vm.searchQuery)
+            } else {
+                resultsList(links: vm.filteredLinks)
+            }
+        }
+        .searchable(text: $vm.searchQuery, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search articles…")
+    }
+
+    // MARK: - AI Search
+
+    var aiSearchBody: some View {
+        VStack(spacing: 0) {
+            // Custom search bar for AI
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(.purple)
+                TextField("Ask AI…", text: $aiQuery)
+                    .textFieldStyle(.plain)
+                    .onSubmit { Task { await runAISearch() } }
+                if !aiQuery.isEmpty {
+                    Button { aiQuery = ""; vm.clearAISearch() } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color(.systemGray5))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+
+            // Results
             if isSearching {
                 VStack(spacing: 16) {
                     ProgressView()
@@ -71,30 +103,28 @@ struct SearchView: View {
                 if results.isEmpty {
                     ContentUnavailableView("No matches", systemImage: "sparkles", description: Text("AI couldn't find articles matching your query."))
                 } else {
-                    searchResultsList(links: results)
+                    resultsList(links: results)
                 }
             } else {
                 VStack(spacing: 12) {
+                    Spacer()
                     Image(systemName: "sparkles")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.purple)
-                    Text("AI Search")
-                        .font(.title3)
-                        .fontWeight(.medium)
-                    Text("Ask naturally: \"articles about design I haven't read\" or \"tutorials from this week\"")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.purple.opacity(0.5))
+                    Text("Try: \"articles about design\" or \"unread tutorials\"")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
+                    Spacer()
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
 
-    // MARK: - Results List
+    // MARK: - Shared Results List
 
-    func searchResultsList(links: [Link]) -> some View {
+    func resultsList(links: [Link]) -> some View {
         ScrollView {
             LazyVStack(spacing: 14) {
                 ForEach(links) { link in
@@ -128,12 +158,13 @@ struct SearchView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - AI Search
+    // MARK: - Run AI Search
 
     func runAISearch() async {
+        guard !aiQuery.isEmpty else { return }
         isSearching = true
         if #available(iOS 26, *) {
-            await vm.aiSearch(query: vm.searchQuery)
+            await vm.aiSearch(query: aiQuery)
         }
         isSearching = false
     }
