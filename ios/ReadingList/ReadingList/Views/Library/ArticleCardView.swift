@@ -7,6 +7,11 @@ struct ArticleCardView: View {
         link.image != nil
     }
 
+    private var statusGlowColor: Color? {
+        guard let status = link.status else { return nil }
+        return StatusPill(status: status).color
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Inset image
@@ -85,8 +90,9 @@ struct ArticleCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                .strokeBorder(statusGlowColor?.opacity(0.5) ?? Color.white.opacity(0.08), lineWidth: statusGlowColor != nil ? 1.5 : 0.5)
         )
+        .shadow(color: statusGlowColor?.opacity(0.3) ?? .clear, radius: 8, x: 0, y: 2)
     }
 
     // MARK: - Fallback

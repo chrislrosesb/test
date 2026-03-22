@@ -5,6 +5,7 @@ struct LibraryView: View {
     @Environment(AuthViewModel.self) private var authVM
 
     @State private var selectedLink: Link? = nil
+    @State private var selectedIndex: Int = 0
     @State private var appeared = false
     @AppStorage("libraryViewMode") private var viewMode: String = "cards"
 
@@ -24,9 +25,12 @@ struct LibraryView: View {
             .toolbar { toolbarContent }
             .background(Color(.systemBackground))
         }
-        .sheet(item: $selectedLink) { link in
-            ArticleDetailView(link: link)
-                .environment(vm)
+        .fullScreenCover(item: $selectedLink) { link in
+            ArticleReaderContainer(
+                links: vm.filteredLinks,
+                initialIndex: selectedIndex,
+                vm: vm
+            )
         }
         // Filter sheet removed — now uses inline Menu popover
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -82,7 +86,10 @@ struct LibraryView: View {
                         value: appeared
                     )
                     .contentShape(Rectangle())
-                    .onTapGesture { selectedLink = link }
+                    .onTapGesture {
+                        selectedIndex = index
+                        selectedLink = link
+                    }
                     .contextMenu { contextMenu(for: link) }
                 }
             }
@@ -275,17 +282,7 @@ struct LibraryView: View {
                 Image(systemName: viewMode == "cards" ? "list.bullet" : "square.grid.2x2")
             }
         }
-        ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                Button(role: .destructive) {
-                    authVM.signOut()
-                } label: {
-                    Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                }
-            } label: {
-                Image(systemName: "person.circle")
-            }
-        }
+        // Sign out moved to Profile tab
     }
 
     func statusMenuItem(_ label: String, value: String, icon: String) -> some View {

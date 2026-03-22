@@ -3,6 +3,11 @@ import SwiftUI
 struct ArticleRowView: View {
     let link: Link
 
+    private var statusColor: Color? {
+        guard let status = link.status else { return nil }
+        return StatusPill(status: status).color
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             // Text content
@@ -42,6 +47,11 @@ struct ArticleRowView: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 16)
+        .background(
+            statusColor != nil
+                ? statusColor!.opacity(0.06)
+                : Color.clear
+        )
     }
 
     // MARK: - Thumbnail

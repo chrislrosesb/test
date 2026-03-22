@@ -47,11 +47,17 @@ final class LibraryViewModel {
         errorMessage = nil
         do {
             allLinks = try await SupabaseClient.shared.fetchLinks()
+        } catch is CancellationError {
+            // Silently ignore — user navigated away
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            // Silently ignore — request cancelled
         } catch {
             errorMessage = "Links: \(error.localizedDescription)"
         }
         do {
             categories = try await SupabaseClient.shared.fetchCategories()
+        } catch is CancellationError {
+        } catch let urlError as URLError where urlError.code == .cancelled {
         } catch {
             let catError = "Categories: \(error.localizedDescription)"
             errorMessage = errorMessage == nil ? catError : errorMessage! + "\n" + catError

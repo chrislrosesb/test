@@ -7,7 +7,6 @@ struct ArticleDetailView: View {
 
     @State private var editedNote: String = ""
     @State private var isEditingNote = false
-    @State private var showReader = false
     @State private var showEnrich = false
     @State private var currentLink: Link
 
@@ -92,9 +91,6 @@ struct ArticleDetailView: View {
                     }
                 }
             }
-        }
-        .sheet(isPresented: $showReader) {
-            WebReaderView(url: currentLink.url, title: currentLink.title ?? currentLink.url)
         }
         .sheet(isPresented: $showEnrich) {
             EnrichSheetView(link: currentLink) { updatedLink in
@@ -200,26 +196,15 @@ struct ArticleDetailView: View {
     // MARK: - Action Buttons
 
     var actionButtons: some View {
-        HStack(spacing: 10) {
-            Button { showReader = true } label: {
-                Label("Read Article", systemImage: "book.open.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-            }
-            .buttonStyle(.borderedProminent)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-            Button { showEnrich = true } label: {
-                Label("Enrich", systemImage: "sparkles")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-            }
-            .tint(.purple)
-            .buttonStyle(.borderedProminent)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        Button { showEnrich = true } label: {
+            Label("Enrich with AI", systemImage: "sparkles")
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
         }
+        .tint(.purple)
+        .buttonStyle(.borderedProminent)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     // MARK: - Rating

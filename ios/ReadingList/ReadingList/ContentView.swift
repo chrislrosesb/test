@@ -29,9 +29,10 @@ struct ContentView: View {
                 SearchView()
                     .environment(libraryVM)
             }
-            Tab("Triage", systemImage: "sparkles") {
-                TriageView()
+            Tab("Profile", systemImage: "person.circle") {
+                ProfileView()
                     .environment(libraryVM)
+                    .environment(authVM)
             }
         }
     }
