@@ -10,6 +10,9 @@ struct ProfileView: View {
     @AppStorage("readerFont") private var fontRaw: String = "system"
     @AppStorage("readerTheme") private var themeRaw: String = "dark"
     @AppStorage("dailyDigestEnabled") private var digestEnabled: Bool = false
+    @AppStorage("digestHour") private var digestHour: Int = 8
+    @AppStorage("digestMinute") private var digestMinute: Int = 0
+    @AppStorage("digestFrequency") private var digestFrequencyRaw: String = DigestFrequency.daily.rawValue
 
     var body: some View {
         NavigationStack {
@@ -212,22 +215,68 @@ struct ProfileView: View {
 
     // MARK: - Notifications
 
+    private var digestFrequency: DigestFrequency {
+        DigestFrequency(rawValue: digestFrequencyRaw) ?? .daily
+    }
+
+    private var digestTime: Date {
+        get {
+            var comps = DateComponents()
+            comps.hour = digestHour
+            comps.minute = digestMinute
+            return Calendar.current.date(from: comps) ?? Date()
+        }
+        set {
+            let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+            digestHour = comps.hour ?? 8
+            digestMinute = comps.minute ?? 0
+        }
+    }
+
     var notificationSection: some View {
-        Section("Daily Digest") {
-            Toggle("Morning notification", isOn: $digestEnabled)
+        Section("Digest Notification") {
+            Toggle("Enable", isOn: $digestEnabled)
                 .onChange(of: digestEnabled) { _, enabled in
                     if enabled {
-                        DigestNotificationManager.shared.requestAndSchedule(links: vm.allLinks)
+                        rescheduleDigest()
                     } else {
                         DigestNotificationManager.shared.cancel()
                     }
                 }
+
             if digestEnabled {
-                Text("You'll get a summary at 8:00 AM")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                DatePicker("Time", selection: Binding(
+                    get: { digestTime },
+                    set: { newValue in
+                        let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                        digestHour = comps.hour ?? 8
+                        digestMinute = comps.minute ?? 0
+                        rescheduleDigest()
+                    }
+                ), displayedComponents: .hourAndMinute)
+
+                Picker("Frequency", selection: Binding(
+                    get: { digestFrequencyRaw },
+                    set: { newValue in
+                        digestFrequencyRaw = newValue
+                        rescheduleDigest()
+                    }
+                )) {
+                    ForEach(DigestFrequency.allCases, id: \.rawValue) { freq in
+                        Text(freq.label).tag(freq.rawValue)
+                    }
+                }
             }
         }
+    }
+
+    func rescheduleDigest() {
+        DigestNotificationManager.shared.requestAndSchedule(
+            links: vm.allLinks,
+            hour: digestHour,
+            minute: digestMinute,
+            frequency: digestFrequency
+        )
     }
 
     // MARK: - Reader Settings
