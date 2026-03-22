@@ -99,7 +99,8 @@ final class DigestNotificationManager {
         let topCategory = catCounts.max(by: { $0.value < $1.value })?.key
 
         let content = UNMutableNotificationContent()
-        content.title = "Reading List"
+        content.title = "Time to Procrastinate"
+        content.categoryIdentifier = "daily-digest"
 
         var parts: [String] = []
         if toReadCount > 0 { parts.append("\(toReadCount) to read") }

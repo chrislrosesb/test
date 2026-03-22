@@ -2,7 +2,9 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(AuthViewModel.self) private var authVM
-    @State private var libraryVM = LibraryViewModel()
+    @State private var libraryVM = ContentView.sharedLibraryVM
+
+    static let sharedLibraryVM = LibraryViewModel()
 
     var body: some View {
         tabView

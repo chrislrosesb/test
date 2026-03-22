@@ -31,7 +31,7 @@ struct ReadingEntry: TimelineEntry {
 
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> ReadingEntry {
-        ReadingEntry(date: .now, totalCount: 24, toReadCount: 12, toDoCount: 6, doneCount: 6, recentTitles: ["Loading...", "Loading...", "Loading..."])
+        ReadingEntry(date: .now, totalCount: 24, toReadCount: 12, toDoCount: 6, doneCount: 6, recentTitles: ["Loading..."])
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ReadingEntry) -> ()) {
@@ -67,8 +67,6 @@ struct Provider: TimelineProvider {
 
         var req = URLRequest(url: url)
         req.setValue(anonKey, forHTTPHeaderField: "apikey")
-
-        // Try to use stored auth token
         if let token = UserDefaults.standard.string(forKey: "supabase_access_token") {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
@@ -89,13 +87,14 @@ struct Provider: TimelineProvider {
             }
 
             let links = try decoder.decode([WidgetLink].self, from: data)
-            let total = links.count
-            let toRead = links.filter { $0.status == "to-read" }.count
-            let toDo = links.filter { $0.status == "to-try" }.count
-            let done = links.filter { $0.status == "done" }.count
-            let recent = Array(links.prefix(3).compactMap(\.title))
-
-            return ReadingEntry(date: .now, totalCount: total, toReadCount: toRead, toDoCount: toDo, doneCount: done, recentTitles: recent)
+            return ReadingEntry(
+                date: .now,
+                totalCount: links.count,
+                toReadCount: links.filter { $0.status == "to-read" }.count,
+                toDoCount: links.filter { $0.status == "to-try" }.count,
+                doneCount: links.filter { $0.status == "done" }.count,
+                recentTitles: Array(links.prefix(3).compactMap(\.title))
+            )
         } catch {
             return ReadingEntry(date: .now, totalCount: 0, toReadCount: 0, toDoCount: 0, doneCount: 0, recentTitles: [])
         }
@@ -119,86 +118,126 @@ struct ReadlingListWidgetEntryView: View {
         }
     }
 
+    // MARK: - Small Widget (stylized)
+
     var smallWidget: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: "books.vertical.fill")
-                    .foregroundStyle(.indigo)
-                Text("Reading List")
-                    .font(.caption)
+        ZStack {
+            // Gradient background
+            LinearGradient(
+                colors: [Color(red: 0.31, green: 0.27, blue: 0.90), Color(red: 0.20, green: 0.16, blue: 0.70)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            VStack(alignment: .leading, spacing: 0) {
+                // App name
+                Text("Procrastinate")
+                    .font(.caption2)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.white.opacity(0.6))
+                    .textCase(.uppercase)
+                    .tracking(1)
+
+                Spacer()
+
+                // Big number
+                Text("\(entry.toReadCount)")
+                    .font(.system(size: 52, weight: .black, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Text("to read")
+                    .font(.subheadline)
                     .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.white.opacity(0.7))
+
+                Spacer()
+
+                // Bottom stats
+                HStack(spacing: 8) {
+                    miniStat("\(entry.toDoCount)", label: "do", color: .orange)
+                    miniStat("\(entry.doneCount)", label: "done", color: .green)
+                }
             }
-
-            Spacer()
-
-            VStack(alignment: .leading, spacing: 4) {
-                Label("\(entry.toReadCount) to read", systemImage: "book")
-                    .font(.caption)
-                    .foregroundStyle(.blue)
-                Label("\(entry.toDoCount) to do", systemImage: "hammer")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                Label("\(entry.doneCount) done", systemImage: "checkmark.circle")
-                    .font(.caption)
-                    .foregroundStyle(.green)
-            }
-
-            Spacer()
-
-            Text("\(entry.totalCount) total")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            .padding(2)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    func miniStat(_ value: String, label: String, color: Color) -> some View {
+        HStack(spacing: 3) {
+            Text(value)
+                .font(.caption)
+                .fontWeight(.bold)
+                .foregroundStyle(color)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.5))
+        }
+    }
+
+    // MARK: - Medium Widget (stylized)
+
     var mediumWidget: some View {
-        HStack(spacing: 16) {
-            // Left: stats
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Image(systemName: "books.vertical.fill")
-                        .foregroundStyle(.indigo)
-                    Text("Reading List")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
+        ZStack {
+            LinearGradient(
+                colors: [Color(red: 0.31, green: 0.27, blue: 0.90), Color(red: 0.20, green: 0.16, blue: 0.70)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            HStack(spacing: 16) {
+                // Left: stats
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Procrastinate")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white.opacity(0.6))
+                        .textCase(.uppercase)
+                        .tracking(1)
+
+                    Spacer()
+
+                    Text("\(entry.toReadCount)")
+                        .font(.system(size: 44, weight: .black, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text("to read")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.7))
+
+                    Spacer()
+
+                    HStack(spacing: 10) {
+                        miniStat("\(entry.toDoCount)", label: "to do", color: .orange)
+                        miniStat("\(entry.doneCount)", label: "done", color: .green)
+                    }
                 }
 
-                Spacer()
+                // Divider
+                Rectangle()
+                    .fill(.white.opacity(0.15))
+                    .frame(width: 1)
+                    .padding(.vertical, 8)
 
-                Label("\(entry.toReadCount) to read", systemImage: "book")
-                    .font(.caption).foregroundStyle(.blue)
-                Label("\(entry.toDoCount) to do", systemImage: "hammer")
-                    .font(.caption).foregroundStyle(.orange)
-                Label("\(entry.doneCount) done", systemImage: "checkmark.circle")
-                    .font(.caption).foregroundStyle(.green)
+                // Right: recent articles
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Recent")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white.opacity(0.5))
+                        .textCase(.uppercase)
 
-                Spacer()
+                    ForEach(entry.recentTitles.prefix(3), id: \.self) { title in
+                        Text(title)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.white.opacity(0.85))
+                            .lineLimit(2)
+                    }
 
-                Text("\(entry.totalCount) total")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-
-            Divider()
-
-            // Right: recent articles
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Recent")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
-
-                ForEach(entry.recentTitles.prefix(3), id: \.self) { title in
-                    Text(title)
-                        .font(.caption)
-                        .lineLimit(2)
+                    Spacer()
                 }
-
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .padding(2)
         }
     }
 }
@@ -210,17 +249,11 @@ struct ReadlingListWidget: Widget {
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
-            if #available(iOS 17.0, *) {
-                ReadlingListWidgetEntryView(entry: entry)
-                    .containerBackground(.fill.tertiary, for: .widget)
-            } else {
-                ReadlingListWidgetEntryView(entry: entry)
-                    .padding()
-                    .background()
-            }
+            ReadlingListWidgetEntryView(entry: entry)
+                .containerBackground(.clear, for: .widget)
         }
-        .configurationDisplayName("Reading List")
-        .description("Unread count and recent saves.")
+        .configurationDisplayName("Procrastinate")
+        .description("Your reading list at a glance.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -228,11 +261,11 @@ struct ReadlingListWidget: Widget {
 #Preview(as: .systemSmall) {
     ReadlingListWidget()
 } timeline: {
-    ReadingEntry(date: .now, totalCount: 24, toReadCount: 12, toDoCount: 6, doneCount: 6, recentTitles: ["The Case for AI", "SwiftUI Tips", "Design Systems"])
+    ReadingEntry(date: .now, totalCount: 27, toReadCount: 14, toDoCount: 5, doneCount: 8, recentTitles: [])
 }
 
 #Preview(as: .systemMedium) {
     ReadlingListWidget()
 } timeline: {
-    ReadingEntry(date: .now, totalCount: 24, toReadCount: 12, toDoCount: 6, doneCount: 6, recentTitles: ["The Case for AI", "SwiftUI Tips", "Design Systems"])
+    ReadingEntry(date: .now, totalCount: 27, toReadCount: 14, toDoCount: 5, doneCount: 8, recentTitles: ["The Case for Ultralight Mac", "AI-Washing Layoffs", "Design Systems Guide"])
 }
