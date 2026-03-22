@@ -8,6 +8,7 @@ struct ArticleDetailView: View {
     @State private var editedNote: String = ""
     @State private var isEditingNote = false
     @State private var showReader = false
+    @State private var showEnrich = false
     @State private var currentLink: Link
 
     init(link: Link) {
@@ -16,43 +17,81 @@ struct ArticleDetailView: View {
         self._editedNote = State(initialValue: link.note ?? "")
     }
 
-    @State private var showEnrich = false
-
     var body: some View {
-        ZStack {
-            // Full-screen blurred background
-            backgroundLayer.ignoresSafeArea()
-
-            // Content
+        NavigationStack {
             ScrollView {
-                VStack(spacing: 12) {
-                    // Hero image
-                    heroSection
+                VStack(alignment: .leading, spacing: 0) {
+                    // Compact hero — small rounded thumbnail, not giant
+                    heroRow
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
 
-                    // Cards
-                    VStack(spacing: 10) {
-                        titleCard
-                        readButton
-                        enrichButton
-                        ratingAndStatusCard
-                        noteCard
-                        if currentLink.category != nil || hasTagContent {
-                            metaCard
-                        }
+                    // Title + domain
+                    titleSection
+                        .padding(.horizontal, 16)
+                        .padding(.top, 14)
+
+                    // Action buttons
+                    actionButtons
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+
+                    // Rating
+                    ratingSection
+                        .padding(.horizontal, 16)
+                        .padding(.top, 20)
+
+                    // Status
+                    statusSection
+                        .padding(.horizontal, 16)
+                        .padding(.top, 20)
+
+                    // Note
+                    noteSection
+                        .padding(.horizontal, 16)
+                        .padding(.top, 20)
+
+                    // Category + Tags
+                    if currentLink.category != nil || hasTagContent {
+                        metaSection
+                            .padding(.horizontal, 16)
+                            .padding(.top, 20)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 60)
+
+                    Spacer(minLength: 40)
+                }
+                .padding(.bottom, 20)
+            }
+            .background(Color(.systemBackground))
+            .navigationTitle(currentLink.domain ?? "Article")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Done") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            shareArticle()
+                        } label: {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                        Button {
+                            guard let url = URL(string: currentLink.url) else { return }
+                            UIApplication.shared.open(url)
+                        } label: {
+                            Label("Open in Safari", systemImage: "safari")
+                        }
+                        Button {
+                            UIPasteboard.general.string = currentLink.url
+                        } label: {
+                            Label("Copy URL", systemImage: "doc.on.doc")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
                 }
             }
-        }
-        // Floating close + share buttons — overlay so they don't shift content
-        .overlay(alignment: .topTrailing) {
-            HStack(spacing: 12) {
-                navButton(icon: "square.and.arrow.up") { shareArticle() }
-                navButton(icon: "xmark") { dismiss() }
-            }
-            .padding(.top, 56)
-            .padding(.trailing, 20)
         }
         .sheet(isPresented: $showReader) {
             WebReaderView(url: currentLink.url, title: currentLink.title ?? currentLink.url)
@@ -70,93 +109,62 @@ struct ArticleDetailView: View {
         return false
     }
 
-    // MARK: - Background
+    // MARK: - Hero Row
 
-    @ViewBuilder
-    var backgroundLayer: some View {
-        if let rawURL = currentLink.image, let imageURL = URL(string: rawURL) {
-            AsyncImage(url: imageURL) { phase in
-                if case .success(let img) = phase {
-                    img.resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .blur(radius: 60)
-                        .saturation(0.6)
-                        .overlay(Color.black.opacity(0.55))
-                } else {
-                    darkGradientBackground
+    var heroRow: some View {
+        HStack(spacing: 14) {
+            // Thumbnail
+            thumbnailView
+                .frame(width: 80, height: 80)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            // Quick info
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 5) {
+                    faviconView
+                    Text(currentLink.domain ?? "")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                if let savedAt = currentLink.savedAt {
+                    Text(savedAt.formatted(date: .abbreviated, time: .omitted))
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                if let status = currentLink.status {
+                    StatusPill(status: status)
+                        .padding(.top, 2)
                 }
             }
-        } else {
-            darkGradientBackground
+            Spacer()
         }
     }
 
-    var darkGradientBackground: some View {
-        LinearGradient(
-            colors: domainGradient(for: currentLink.domain).map { $0.opacity(0.6) } + [Color.black.opacity(0.3)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
-    // MARK: - Hero
-
     @ViewBuilder
-    var heroSection: some View {
+    var thumbnailView: some View {
         if let rawURL = currentLink.image, let imageURL = URL(string: rawURL) {
             AsyncImage(url: imageURL) { phase in
                 if case .success(let img) = phase {
-                    img.resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 280)
-                        .clipped()
+                    img.resizable().aspectRatio(contentMode: .fill)
                 } else {
-                    fallbackHero
+                    fallbackThumbnail
                 }
             }
         } else {
-            fallbackHero
+            fallbackThumbnail
         }
     }
 
-    var fallbackHero: some View {
+    var fallbackThumbnail: some View {
         ZStack {
             LinearGradient(colors: domainGradient(for: currentLink.domain),
                            startPoint: .topLeading, endPoint: .bottomTrailing)
             if let first = currentLink.domain?.first {
                 Text(String(first).uppercased())
-                    .font(.system(size: 80, weight: .black, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.2))
+                    .font(.system(size: 32, weight: .black, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.4))
             }
         }
-        .frame(height: 240)
-    }
-
-    // MARK: - Title Card
-
-    var titleCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                faviconView
-                Text(currentLink.domain ?? "")
-                    .font(.subheadline).foregroundStyle(.secondary)
-                Spacer()
-                if let savedAt = currentLink.savedAt {
-                    Text(savedAt.formatted(date: .abbreviated, time: .omitted))
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            Text(currentLink.title ?? currentLink.url)
-                .font(.title2).fontWeight(.bold).foregroundStyle(.primary)
-            if let desc = currentLink.description {
-                Text(desc).font(.subheadline).foregroundStyle(.secondary).lineLimit(3)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .materialCard()
     }
 
     @ViewBuilder
@@ -164,187 +172,203 @@ struct ArticleDetailView: View {
         if let rawFavicon = currentLink.favicon, let faviconURL = URL(string: rawFavicon) {
             AsyncImage(url: faviconURL) { phase in
                 if case .success(let img) = phase {
-                    img.resizable().frame(width: 16, height: 16).clipShape(Circle())
+                    img.resizable().frame(width: 14, height: 14).clipShape(Circle())
                 }
             }
         }
     }
 
-    // MARK: - Read Button
+    // MARK: - Title
 
-    var readButton: some View {
-        Button { showReader = true } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "book.open.fill")
-                Text("Read Article").fontWeight(.semibold)
+    var titleSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(currentLink.title ?? currentLink.url)
+                .font(.title3)
+                .fontWeight(.bold)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let desc = currentLink.description, !desc.isEmpty {
+                Text(desc)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
             }
-            .font(.headline)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .foregroundStyle(.white)
-            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
     }
 
-    // MARK: - Enrich Button
+    // MARK: - Action Buttons
 
-    var enrichButton: some View {
-        Button { showEnrich = true } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "sparkles")
-                Text("Enrich with AI").fontWeight(.semibold)
+    var actionButtons: some View {
+        HStack(spacing: 10) {
+            Button { showReader = true } label: {
+                Label("Read Article", systemImage: "book.open.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
             }
-            .font(.headline)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .foregroundStyle(.white)
-            .background(
-                LinearGradient(colors: [Color.purple, Color.indigo],
-                               startPoint: .leading, endPoint: .trailing),
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-            )
+            .buttonStyle(.borderedProminent)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            Button { showEnrich = true } label: {
+                Label("Enrich", systemImage: "sparkles")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .tint(.purple)
+            .buttonStyle(.borderedProminent)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 
-    // MARK: - Rating + Status Card
+    // MARK: - Rating
 
-    var ratingAndStatusCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Stars
-            VStack(alignment: .leading, spacing: 10) {
-                sectionLabel("Rating", icon: "star")
-                HStack(spacing: 8) {
-                    ForEach(1...5, id: \.self) { i in
-                        Button {
-                            let n = currentLink.stars == i ? 0 : i
-                            currentLink.stars = n
-                            Task { await vm.updateStars(link: link, stars: n) }
-                        } label: {
-                            Image(systemName: i <= (currentLink.stars ?? 0) ? "star.fill" : "star")
-                                .font(.title2)
-                                .foregroundStyle(i <= (currentLink.stars ?? 0) ? .yellow : Color(.systemGray3))
-                        }
-                        .buttonStyle(.plain)
-                        .animation(.spring(duration: 0.2, bounce: 0.6), value: currentLink.stars)
-                    }
-                    Spacer()
-                }
-            }
-
-            Divider()
-
-            // Status
-            VStack(alignment: .leading, spacing: 10) {
-                sectionLabel("Status", icon: "tag")
-                HStack(spacing: 8) {
-                    ForEach(["to-read", "to-try", "to-share", "done"], id: \.self) { status in
-                        let isSelected = currentLink.status == status
-                        Button {
-                            let newStatus = isSelected ? nil : status
-                            currentLink.status = newStatus
-                            currentLink.read = newStatus == "done"
-                            Task { await vm.updateStatus(link: link, status: newStatus) }
-                        } label: {
-                            StatusPill(status: status)
-                                .scaleEffect(isSelected ? 1.08 : 1)
-                                .opacity(currentLink.status == nil || isSelected ? 1 : 0.4)
-                        }
-                        .buttonStyle(.plain)
-                        .animation(.spring(duration: 0.25, bounce: 0.5), value: currentLink.status)
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .materialCard()
-    }
-
-    // MARK: - Note Card
-
-    var noteCard: some View {
+    var ratingSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionLabel("Note", icon: "note.text")
+            Text("Rating")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            HStack(spacing: 6) {
+                ForEach(1...5, id: \.self) { i in
+                    Button {
+                        let n = currentLink.stars == i ? 0 : i
+                        currentLink.stars = n
+                        Task { await vm.updateStars(link: link, stars: n) }
+                    } label: {
+                        Image(systemName: i <= (currentLink.stars ?? 0) ? "star.fill" : "star")
+                            .font(.title3)
+                            .foregroundStyle(i <= (currentLink.stars ?? 0) ? .yellow : Color(.systemGray3))
+                    }
+                    .buttonStyle(.plain)
+                    .animation(.spring(duration: 0.2, bounce: 0.6), value: currentLink.stars)
+                }
+                Spacer()
+            }
+        }
+    }
+
+    // MARK: - Status
+
+    var statusSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Status")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            HStack(spacing: 8) {
+                statusButton("to-read")
+                statusButton("to-try")
+                statusButton("to-share")
+                statusButton("done")
+            }
+        }
+    }
+
+    func statusButton(_ status: String) -> some View {
+        let isSelected = currentLink.status == status
+        return Button {
+            let newStatus = isSelected ? nil : status
+            currentLink.status = newStatus
+            currentLink.read = newStatus == "done"
+            Task { await vm.updateStatus(link: link, status: newStatus) }
+        } label: {
+            StatusPill(status: status)
+                .scaleEffect(isSelected ? 1.05 : 1)
+                .opacity(currentLink.status == nil || isSelected ? 1 : 0.4)
+        }
+        .buttonStyle(.plain)
+        .animation(.spring(duration: 0.25, bounce: 0.5), value: currentLink.status)
+    }
+
+    // MARK: - Note
+
+    var noteSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Note")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
             if isEditingNote {
                 TextEditor(text: $editedNote)
                     .frame(minHeight: 80)
-                    .padding(8)
-                    .background(Color(.systemGray5))
+                    .padding(10)
+                    .background(Color(.systemGray6))
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .scrollContentBackground(.hidden)
                 HStack {
                     Button("Cancel") {
                         editedNote = currentLink.note ?? ""
                         isEditingNote = false
-                    }.foregroundStyle(.secondary)
+                    }
+                    .foregroundStyle(.secondary)
                     Spacer()
                     Button("Save") {
                         currentLink.note = editedNote.isEmpty ? nil : editedNote
                         isEditingNote = false
                         Task { await vm.updateNote(link: link, note: editedNote) }
-                    }.fontWeight(.semibold)
+                    }
+                    .fontWeight(.semibold)
                 }
             } else {
                 Button { isEditingNote = true } label: {
-                    if let note = currentLink.note, !note.isEmpty {
-                        Text(note).font(.body).foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        Label("Add a note…", systemImage: "plus.circle")
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    Group {
+                        if let note = currentLink.note, !note.isEmpty {
+                            Text(note)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                        } else {
+                            Label("Add a note…", systemImage: "plus.circle")
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                }.buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .materialCard()
     }
 
-    // MARK: - Meta Card
+    // MARK: - Meta (Category + Tags)
 
-    var metaCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    var metaSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
             if let category = currentLink.category {
-                VStack(alignment: .leading, spacing: 6) {
-                    sectionLabel("Category", icon: "folder")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Category")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
                     Text(category)
                         .font(.subheadline)
-                        .padding(.horizontal, 10).padding(.vertical, 4)
-                        .background(Color.indigo.opacity(0.2))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.indigo.opacity(0.15))
                         .foregroundStyle(.indigo)
                         .clipShape(Capsule())
                 }
             }
+
             if let tags = currentLink.tags, !tags.isEmpty {
-                if currentLink.category != nil { Divider() }
-                VStack(alignment: .leading, spacing: 6) {
-                    sectionLabel("Tags", icon: "tag")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Tags")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
                     FlowLayout(tags: tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .materialCard()
     }
 
     // MARK: - Helpers
-
-    func sectionLabel(_ text: String, icon: String) -> some View {
-        Label(text, systemImage: icon)
-            .font(.footnote).fontWeight(.semibold).foregroundStyle(.secondary)
-    }
-
-    func navButton(icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 36, height: 36)
-                .background(.ultraThinMaterial, in: Circle())
-        }
-    }
 
     func shareArticle() {
         guard let url = URL(string: currentLink.url) else { return }

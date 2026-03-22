@@ -6,7 +6,7 @@ struct LibraryView: View {
 
     @State private var selectedLink: Link? = nil
     @State private var appeared = false
-    @State private var showFilterSheet = false
+    // Filter is now a Menu popover, no sheet needed
 
     var body: some View {
         NavigationStack {
@@ -28,10 +28,7 @@ struct LibraryView: View {
             ArticleDetailView(link: link)
                 .environment(vm)
         }
-        .sheet(isPresented: $showFilterSheet) {
-            FilterSheetView()
-                .environment(vm)
-        }
+        // Filter sheet removed — now uses inline Menu popover
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if let error = vm.errorMessage {
                 HStack(spacing: 12) {
@@ -187,8 +184,70 @@ struct LibraryView: View {
     @ToolbarContentBuilder
     var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            Button {
-                showFilterSheet = true
+            Menu {
+                // Status section
+                Section("Status") {
+                    Button {
+                        vm.selectedStatus = nil
+                    } label: {
+                        Label("All", systemImage: vm.selectedStatus == nil ? "checkmark" : "tray.full")
+                    }
+                    statusMenuItem("To Read", value: "to-read", icon: "book")
+                    statusMenuItem("To Try", value: "to-try", icon: "hammer")
+                    statusMenuItem("To Share", value: "to-share", icon: "paperplane")
+                    statusMenuItem("Done", value: "done", icon: "checkmark.circle")
+                }
+
+                // Categories section
+                if !vm.categories.isEmpty {
+                    Section("Category") {
+                        Button {
+                            vm.selectedCategory = nil
+                        } label: {
+                            Label("All Categories", systemImage: vm.selectedCategory == nil ? "checkmark" : "folder")
+                        }
+                        ForEach(vm.categories) { cat in
+                            Button {
+                                vm.selectedCategory = cat.name
+                            } label: {
+                                Label {
+                                    Text(cat.name)
+                                } icon: {
+                                    if vm.selectedCategory == cat.name {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Sort section
+                Section("Sort") {
+                    Button {
+                        vm.sortByStars = false
+                    } label: {
+                        Label("Newest First", systemImage: vm.sortByStars ? "clock" : "checkmark")
+                    }
+                    Button {
+                        vm.sortByStars = true
+                    } label: {
+                        Label("Highest Rated", systemImage: vm.sortByStars ? "checkmark" : "star.fill")
+                    }
+                }
+
+                // Clear
+                if vm.hasActiveFilters {
+                    Section {
+                        Button(role: .destructive) {
+                            vm.selectedStatus = nil
+                            vm.selectedCategory = nil
+                            vm.sortByStars = false
+                        } label: {
+                            Label("Clear All Filters", systemImage: "xmark.circle")
+                        }
+                    }
+                }
             } label: {
                 Image(systemName: vm.hasActiveFilters
                       ? "line.3.horizontal.decrease.circle.fill"
@@ -206,6 +265,18 @@ struct LibraryView: View {
                 }
             } label: {
                 Image(systemName: "person.circle")
+            }
+        }
+    }
+
+    func statusMenuItem(_ label: String, value: String, icon: String) -> some View {
+        Button {
+            vm.selectedStatus = vm.selectedStatus == value ? nil : value
+        } label: {
+            Label {
+                Text(label)
+            } icon: {
+                Image(systemName: vm.selectedStatus == value ? "checkmark" : icon)
             }
         }
     }
