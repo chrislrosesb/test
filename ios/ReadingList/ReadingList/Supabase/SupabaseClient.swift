@@ -84,6 +84,28 @@ final class SupabaseClient {
         UserDefaults.standard.removeObject(forKey: "supabase_refresh_token")
     }
 
+    func refreshSession() async throws {
+        guard let refreshToken = UserDefaults.standard.string(forKey: "supabase_refresh_token") else {
+            throw SupabaseError.auth("No refresh token. Please sign in again.")
+        }
+        let url = URL(string: "\(Config.baseURL)/auth/v1/token?grant_type=refresh_token")!
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(Config.anonKey, forHTTPHeaderField: "apikey")
+        req.httpBody = try JSONEncoder().encode(["refresh_token": refreshToken])
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            signOut()
+            throw SupabaseError.auth("Session expired. Please sign in again.")
+        }
+        struct AuthResp: Decodable { let access_token: String; let refresh_token: String }
+        let auth = try JSONDecoder().decode(AuthResp.self, from: data)
+        UserDefaults.standard.set(auth.access_token, forKey: "supabase_access_token")
+        UserDefaults.standard.set(auth.refresh_token, forKey: "supabase_refresh_token")
+    }
+
     // MARK: - Read
 
     func fetchLinks() async throws -> [Link] {
@@ -108,15 +130,24 @@ final class SupabaseClient {
         return try await get(url: comps.url!, type: [Category].self)
     }
 
-    private func get<T: Decodable>(url: URL, type: T.Type) async throws -> T {
+    private func get<T: Decodable>(url: URL, type: T.Type, retried: Bool = false) async throws -> T {
         var req = URLRequest(url: url)
         req.setValue(Config.anonKey, forHTTPHeaderField: "apikey")
         if let token = accessToken {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         let (data, response) = try await URLSession.shared.data(for: req)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+
+        // If 401 and we haven't retried yet, refresh token and retry
+        if status == 401 && !retried {
+            try await refreshSession()
+            return try await get(url: url, type: type, retried: true)
+        }
+
+        guard status == 200 else {
             let body = String(data: data, encoding: .utf8) ?? "no body"
+            print("❌ Fetch failed (\(status)): \(body.prefix(300))")
             throw SupabaseError.fetch
         }
         do {
@@ -131,7 +162,7 @@ final class SupabaseClient {
 
     // MARK: - Write
 
-    func updateLink(id: String, fields: [String: Any]) async throws {
+    func updateLink(id: String, fields: [String: Any], retried: Bool = false) async throws {
         let url = URL(string: "\(Config.baseURL)/rest/v1/links?id=eq.\(id)")!
         var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
@@ -143,7 +174,13 @@ final class SupabaseClient {
         req.httpBody = try JSONSerialization.data(withJSONObject: fields)
 
         let (_, response) = try await URLSession.shared.data(for: req)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if status == 401 && !retried {
+            try await refreshSession()
+            try await updateLink(id: id, fields: fields, retried: true)
+            return
+        }
+        guard (200...299).contains(status) else {
             throw SupabaseError.update
         }
     }
