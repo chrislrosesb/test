@@ -102,13 +102,28 @@ struct Provider: TimelineProvider {
             }
 
             let links = try decoder.decode([WidgetLink].self, from: data)
-            // Download thumbnails
+            // Download thumbnails with timeout
             var articles: [WidgetArticle] = []
+            let session = URLSession(configuration: {
+                let c = URLSessionConfiguration.default
+                c.timeoutIntervalForRequest = 8
+                c.timeoutIntervalForResource = 10
+                return c
+            }())
             for link in links {
                 var thumb: UIImage? = nil
-                if let imgStr = link.image, let imgURL = URL(string: imgStr) {
-                    if let (imgData, _) = try? await URLSession.shared.data(from: imgURL) {
-                        thumb = UIImage(data: imgData)
+                if let imgStr = link.image, !imgStr.isEmpty, let imgURL = URL(string: imgStr) {
+                    do {
+                        let (imgData, _) = try await session.data(from: imgURL)
+                        if let img = UIImage(data: imgData) {
+                            // Downscale to save memory in widget
+                            let renderer = UIGraphicsImageRenderer(size: CGSize(width: 120, height: 120))
+                            thumb = renderer.image { _ in
+                                img.draw(in: CGRect(x: 0, y: 0, width: 120, height: 120))
+                            }
+                        }
+                    } catch {
+                        // Image download failed — use fallback
                     }
                 }
                 articles.append(WidgetArticle(
