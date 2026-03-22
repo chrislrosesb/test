@@ -89,7 +89,7 @@ struct TriageView: View {
             HStack(spacing: 16) {
                 Button {
                     withAnimation(.spring(duration: 0.35, bounce: 0.3)) {
-                        skippedIDs.insert(link.id)
+                        _ = skippedIDs.insert(link.id)
                     }
                 } label: {
                     Label("Skip", systemImage: "arrow.right")
