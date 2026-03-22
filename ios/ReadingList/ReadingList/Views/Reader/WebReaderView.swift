@@ -431,13 +431,25 @@ struct ReaderWebView: UIViewRepresentable {
 
 // MARK: - Full WebView (unchanged)
 
+// MARK: - Shared web config (persists cookies/logins between sessions)
+
+enum SharedWebConfig {
+    static let processPool = WKProcessPool()
+
+    static func makeConfiguration() -> WKWebViewConfiguration {
+        let config = WKWebViewConfiguration()
+        config.processPool = processPool
+        config.websiteDataStore = .default()  // Persistent — saves cookies, logins, localStorage
+        config.allowsInlineMediaPlayback = true
+        return config
+    }
+}
+
 struct WebView: UIViewRepresentable {
     let url: URL
 
     func makeUIView(context: Context) -> WKWebView {
-        let config = WKWebViewConfiguration()
-        config.allowsInlineMediaPlayback = true
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let webView = WKWebView(frame: .zero, configuration: SharedWebConfig.makeConfiguration())
         webView.allowsBackForwardNavigationGestures = true
         return webView
     }
