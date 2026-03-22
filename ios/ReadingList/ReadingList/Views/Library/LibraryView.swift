@@ -6,6 +6,7 @@ struct LibraryView: View {
 
     @State private var selectedLink: Link? = nil
     @State private var appeared = false
+    @State private var showFilterSheet = false
 
     var body: some View {
         NavigationStack {
@@ -21,13 +22,14 @@ struct LibraryView: View {
             .navigationTitle("Library")
             .navigationBarTitleDisplayMode(.large)
             .toolbar { toolbarContent }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                FilterBarView()
-                    .background(.regularMaterial)
-            }
+            .background(Color(.systemBackground))
         }
         .sheet(item: $selectedLink) { link in
             ArticleDetailView(link: link)
+                .environment(vm)
+        }
+        .sheet(isPresented: $showFilterSheet) {
+            FilterSheetView()
                 .environment(vm)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -62,12 +64,12 @@ struct LibraryView: View {
 
     var articleList: some View {
         ScrollView {
-            LazyVStack(spacing: 14) {
+            LazyVStack(spacing: 16) {
                 ForEach(Array(vm.filteredLinks.enumerated()), id: \.element.id) { index, link in
                     ArticleCardView(link: link)
                         .padding(.horizontal, 16)
                         .opacity(appeared ? 1 : 0)
-                        .offset(y: appeared ? 0 : 20)
+                        .offset(y: appeared ? 0 : 24)
                         .animation(
                             .spring(duration: 0.5, bounce: 0.4)
                             .delay(Double(min(index, 10)) * 0.05),
@@ -85,11 +87,9 @@ struct LibraryView: View {
                 }
             }
             .padding(.vertical, 12)
-            .padding(.bottom, 80) // tab bar clearance
+            .padding(.bottom, 100)
         }
-        .refreshable {
-            await vm.refresh()
-        }
+        .refreshable { await vm.refresh() }
     }
 
     // MARK: - Swipe Actions
@@ -101,7 +101,6 @@ struct LibraryView: View {
         } label: {
             Label("Delete", systemImage: "trash")
         }
-
         Menu {
             statusMenu(for: link)
         } label: {
@@ -147,7 +146,6 @@ struct LibraryView: View {
         } label: {
             Label("Copy URL", systemImage: "doc.on.doc")
         }
-
         Button {
             guard let url = URL(string: link.url) else { return }
             let av = UIActivityViewController(activityItems: [url], applicationActivities: nil)
@@ -158,17 +156,14 @@ struct LibraryView: View {
         } label: {
             Label("Share", systemImage: "square.and.arrow.up")
         }
-
         Button {
             guard let url = URL(string: link.url) else { return }
             UIApplication.shared.open(url)
         } label: {
             Label("Open in Safari", systemImage: "safari")
         }
-
         Divider()
         statusMenu(for: link)
-
         Divider()
         Button(role: .destructive) {
             Task { await vm.delete(link: link) }
@@ -191,6 +186,17 @@ struct LibraryView: View {
 
     @ToolbarContentBuilder
     var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button {
+                showFilterSheet = true
+            } label: {
+                Image(systemName: vm.hasActiveFilters
+                      ? "line.3.horizontal.decrease.circle.fill"
+                      : "line.3.horizontal.decrease.circle")
+                    .foregroundStyle(vm.hasActiveFilters ? Color.accentColor : Color.primary)
+                    .symbolEffect(.bounce, value: vm.hasActiveFilters)
+            }
+        }
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 Button(role: .destructive) {
@@ -208,8 +214,7 @@ struct LibraryView: View {
 
     var loadingView: some View {
         VStack(spacing: 16) {
-            ProgressView()
-                .scaleEffect(1.3)
+            ProgressView().scaleEffect(1.3)
             Text("Loading your library…")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -221,7 +226,7 @@ struct LibraryView: View {
     var emptyView: some View {
         if !vm.searchQuery.isEmpty {
             ContentUnavailableView.search(text: vm.searchQuery)
-        } else if vm.selectedStatus != nil || vm.selectedCategory != nil {
+        } else if vm.hasActiveFilters {
             ContentUnavailableView(
                 "No Articles",
                 systemImage: "line.3.horizontal.decrease.circle",

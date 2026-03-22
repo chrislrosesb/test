@@ -13,6 +13,10 @@ final class LibraryViewModel {
     var sortByStars: Bool = false
     var searchQuery: String = ""
 
+    var hasActiveFilters: Bool {
+        selectedStatus != nil || selectedCategory != nil || sortByStars
+    }
+
     var filteredLinks: [Link] {
         var result = allLinks
 

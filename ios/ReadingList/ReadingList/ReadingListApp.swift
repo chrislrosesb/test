@@ -16,6 +16,7 @@ struct ReadingListApp: App {
                 }
             }
             .animation(.spring(duration: 0.5, bounce: 0.3), value: authVM.isAuthenticated)
+            .preferredColorScheme(.dark)
         }
     }
 }
