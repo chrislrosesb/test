@@ -143,54 +143,43 @@ struct LibraryView: View {
     // MARK: - Article List
 
     var articleList: some View {
-        ScrollView {
-            LazyVStack(spacing: viewMode == "cards" ? 16 : 0) {
-                ForEach(Array(displayedLinks.enumerated()), id: \.element.id) { index, link in
-                    Group {
-                        if viewMode == "cards" {
-                            ArticleCardView(link: link)
-                                .padding(.horizontal, 16)
-                        } else {
-                            ArticleRowView(link: link)
-                            if index < displayedLinks.count - 1 {
-                                Divider().padding(.leading, 16)
-                            }
-                        }
+        List {
+            ForEach(Array(displayedLinks.enumerated()), id: \.element.id) { index, link in
+                Group {
+                    if viewMode == "cards" {
+                        ArticleCardView(link: link)
+                    } else {
+                        ArticleRowView(link: link)
                     }
-                    .opacity(appeared ? 1 : 0)
-                    .offset(y: appeared ? 0 : 16)
-                    .animation(
-                        .spring(duration: 0.4, bounce: 0.3)
-                        .delay(Double(min(index, 8)) * 0.04),
-                        value: appeared
-                    )
-                    .overlay(alignment: .topTrailing) {
-                        if isCurating {
-                            Image(systemName: curateSelection.contains(link.id) ? "checkmark.circle.fill" : "circle")
-                                .font(.title3)
-                                .foregroundStyle(curateSelection.contains(link.id) ? Color.accentColor : .secondary)
-                                .padding(12)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        if isCurating {
-                            if curateSelection.contains(link.id) {
-                                curateSelection.remove(link.id)
-                            } else {
-                                _ = curateSelection.insert(link.id)
-                            }
-                        } else {
-                            selectedIndex = index
-                            selectedLink = link
-                        }
-                    }
-                    .contextMenu { if !isCurating { contextMenu(for: link) } }
                 }
+                .overlay(alignment: .topTrailing) {
+                    if isCurating {
+                        Image(systemName: curateSelection.contains(link.id) ? "checkmark.circle.fill" : "circle")
+                            .font(.title3)
+                            .foregroundStyle(curateSelection.contains(link.id) ? Color.accentColor : .secondary)
+                            .padding(12)
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if isCurating {
+                        if curateSelection.contains(link.id) {
+                            curateSelection.remove(link.id)
+                        } else {
+                            _ = curateSelection.insert(link.id)
+                        }
+                    } else {
+                        selectedIndex = index
+                        selectedLink = link
+                    }
+                }
+                .contextMenu { if !isCurating { contextMenu(for: link) } }
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowBackground(Color.clear)
             }
-            .padding(.vertical, 12)
-            .padding(.bottom, 100)
         }
+        .listStyle(.plain)
         .refreshable { await vm.refresh() }
     }
 
