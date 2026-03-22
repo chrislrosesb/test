@@ -59,13 +59,10 @@ struct ArticleRowView: View {
     @ViewBuilder
     var thumbnailView: some View {
         if let rawURL = link.image, let imageURL = URL(string: rawURL) {
-            AsyncImage(url: imageURL) { phase in
-                switch phase {
-                case .success(let img):
-                    img.resizable().aspectRatio(contentMode: .fill)
-                default:
-                    fallbackThumb
-                }
+            CachedAsyncImage(url: imageURL) { img in
+                img.resizable().aspectRatio(contentMode: .fill)
+            } placeholder: {
+                fallbackThumb
             }
         } else {
             fallbackThumb
