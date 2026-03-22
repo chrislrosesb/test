@@ -34,10 +34,10 @@ struct ProfileView: View {
     var overviewSection: some View {
         Section {
             HStack(spacing: 0) {
-                statBox(value: "\(vm.allLinks.count)", label: "Saved", color: .blue)
                 statBox(value: "\(toReadCount)", label: "To Read", color: .blue)
                 statBox(value: "\(toDoCount)", label: "To Do", color: .orange)
                 statBox(value: "\(doneCount)", label: "Done", color: .green)
+                statBox(value: "\(unsortedCount)", label: "Unsorted", color: .secondary)
             }
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
@@ -288,6 +288,7 @@ struct ProfileView: View {
     var doneCount: Int { vm.allLinks.filter { $0.status == "done" }.count }
     var toReadCount: Int { vm.allLinks.filter { $0.status == "to-read" }.count }
     var toDoCount: Int { vm.allLinks.filter { $0.status == "to-try" }.count }
+    var unsortedCount: Int { vm.allLinks.filter { $0.status == nil || ($0.status != "to-read" && $0.status != "to-try" && $0.status != "done") }.count }
 
     var averageRating: String {
         let rated = vm.allLinks.compactMap(\.stars).filter { $0 > 0 }
