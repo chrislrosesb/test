@@ -11,8 +11,7 @@ struct ArticleReaderContainer: View {
     @State private var currentIndex: Int
     @State private var showInfo = false
     @State private var showTypography = false
-    @State private var isReaderMode = true
-    @State private var showToolbar = true
+    @State private var isReaderMode = false  // Default to website view
 
     @AppStorage("readerFontSize") private var fontSize: Double = 17
     @AppStorage("readerFont") private var fontRaw: String = "system"
@@ -33,21 +32,15 @@ struct ArticleReaderContainer: View {
     var theme: ReaderTheme { ReaderTheme(rawValue: themeRaw) ?? .dark }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            // Reader content — full screen
+        VStack(spacing: 0) {
+            // Content — fills available space
             readerContent
-                .ignoresSafeArea(edges: .bottom)
                 .gesture(swipeGesture)
-                .onTapGesture { withAnimation(.easeOut(duration: 0.2)) { showToolbar.toggle() } }
 
-            // Floating toolbar
-            if showToolbar {
-                floatingToolbar
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+            // Bottom toolbar — always visible, flat, edge-to-edge
+            bottomBar
         }
-        .statusBarHidden(!showToolbar)
-        .animation(.easeOut(duration: 0.2), value: showToolbar)
+        .ignoresSafeArea(edges: .top)
         .sheet(isPresented: $showInfo) {
             ArticleDetailView(link: currentLink)
                 .environment(vm)
@@ -70,7 +63,7 @@ struct ArticleReaderContainer: View {
                     theme: theme,
                     onFallback: { withAnimation { isReaderMode = false } }
                 )
-                .id(currentLink.id + "reader") // Force reload on article change
+                .id(currentLink.id + "reader")
             } else {
                 WebView(url: webURL)
                     .id(currentLink.id + "web")
@@ -80,43 +73,52 @@ struct ArticleReaderContainer: View {
         }
     }
 
-    // MARK: - Floating Toolbar
+    // MARK: - Bottom Bar (flat, edge-to-edge)
 
-    var floatingToolbar: some View {
-        HStack(spacing: 20) {
+    var bottomBar: some View {
+        HStack(spacing: 0) {
+            // Close
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 44, height: 44)
             }
 
             Spacer()
 
-            // Article position
+            // Article counter
             Text("\(currentIndex + 1) / \(links.count)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             Spacer()
 
-            if isReaderMode {
-                Button { showTypography = true } label: {
-                    Image(systemName: "textformat.size")
-                        .font(.system(size: 14))
-                }
-            }
-
+            // Reader toggle
             Button {
                 withAnimation(.spring(duration: 0.3)) { isReaderMode.toggle() }
             } label: {
                 Image(systemName: isReaderMode ? "globe" : "doc.text")
-                    .font(.system(size: 14))
+                    .font(.system(size: 16))
+                    .frame(width: 44, height: 44)
             }
 
+            // Typography (only in reader mode)
+            if isReaderMode {
+                Button { showTypography = true } label: {
+                    Image(systemName: "textformat.size")
+                        .font(.system(size: 15))
+                        .frame(width: 44, height: 44)
+                }
+            }
+
+            // Info
             Button { showInfo = true } label: {
                 Image(systemName: "info.circle")
-                    .font(.system(size: 14))
+                    .font(.system(size: 16))
+                    .frame(width: 44, height: 44)
             }
 
+            // Overflow
             Menu {
                 Button {
                     guard let url = URL(string: currentLink.url) else { return }
@@ -131,15 +133,13 @@ struct ArticleReaderContainer: View {
                 }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 14))
+                    .font(.system(size: 16))
+                    .frame(width: 44, height: 44)
             }
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(.ultraThinMaterial, in: Capsule())
-        .padding(.horizontal, 16)
-        .padding(.bottom, 8)
+        .foregroundStyle(.primary)
+        .padding(.horizontal, 8)
+        .background(.regularMaterial)
     }
 
     // MARK: - Swipe Gesture
@@ -149,18 +149,12 @@ struct ArticleReaderContainer: View {
             .onEnded { value in
                 let horizontal = value.translation.width
                 let vertical = value.translation.height
-
-                // Only handle horizontal swipes (not vertical scrolling)
                 guard abs(horizontal) > abs(vertical) else { return }
 
                 if horizontal < -50 && currentIndex < links.count - 1 {
-                    // Swipe left → next article
                     withAnimation(.spring(duration: 0.3)) { currentIndex += 1 }
-                    isReaderMode = true
                 } else if horizontal > 50 && currentIndex > 0 {
-                    // Swipe right → previous article
                     withAnimation(.spring(duration: 0.3)) { currentIndex -= 1 }
-                    isReaderMode = true
                 }
             }
     }
