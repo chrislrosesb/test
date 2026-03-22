@@ -140,23 +140,24 @@ struct ReadlingListWidgetEntryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header: "Procrastinate Next" + app icon
-            HStack {
+            HStack(alignment: .center) {
                 Text("Procrastinate Next")
-                    .font(.system(size: family == .systemSmall ? 15 : 20, weight: .bold))
+                    .font(.system(size: family == .systemSmall ? 14 : 17, weight: .bold))
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
                 Spacer()
                 Image(systemName: "books.vertical.fill")
-                    .font(.system(size: family == .systemSmall ? 16 : 22))
+                    .font(.system(size: family == .systemSmall ? 14 : 18))
                     .foregroundStyle(.indigo)
             }
-            .padding(.bottom, family == .systemSmall ? 8 : 12)
+            .padding(.bottom, family == .systemSmall ? 6 : 10)
 
             // Article rows
             let count = family == .systemSmall ? 1 : 2
             ForEach(Array(entry.articles.prefix(count).enumerated()), id: \.element.id) { index, article in
                 articleRow(article)
                 if index < count - 1 && index < entry.articles.count - 1 {
-                    Spacer(minLength: 8)
+                    Spacer(minLength: 6)
                 }
             }
 
@@ -190,7 +191,7 @@ struct ReadlingListWidgetEntryView: View {
                     }
                 }
             }
-            .frame(width: family == .systemSmall ? 48 : 64, height: family == .systemSmall ? 48 : 64)
+            .frame(width: family == .systemSmall ? 44 : 52, height: family == .systemSmall ? 44 : 52)
             .clipShape(RoundedRectangle(cornerRadius: family == .systemSmall ? 8 : 10, style: .continuous))
 
             // Text
@@ -257,10 +258,10 @@ struct ReadlingListWidget: Widget {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
             if #available(iOS 26, *) {
                 ReadlingListWidgetEntryView(entry: entry)
-                    .containerBackground(.regularMaterial, for: .widget)
+                    .containerBackground(.ultraThinMaterial, for: .widget)
             } else {
                 ReadlingListWidgetEntryView(entry: entry)
-                    .containerBackground(.regularMaterial, for: .widget)
+                    .containerBackground(.ultraThinMaterial, for: .widget)
             }
         }
         .configurationDisplayName("Procrastinate Next")
