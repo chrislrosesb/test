@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#07070f"/>
+      <stop offset="100%" stop-color="#0f0f20"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#818cf8"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#4f46e5" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Subtle grid -->
+  <g stroke="#ffffff" stroke-opacity="0.025" stroke-width="1">
+    <line x1="0" y1="126" x2="1200" y2="126"/><line x1="0" y1="252" x2="1200" y2="252"/>
+    <line x1="0" y1="378" x2="1200" y2="378"/><line x1="0" y1="504" x2="1200" y2="504"/>
+    <line x1="200" y1="0" x2="200" y2="630"/><line x1="400" y1="0" x2="400" y2="630"/>
+    <line x1="600" y1="0" x2="600" y2="630"/><line x1="800" y1="0" x2="800" y2="630"/>
+    <line x1="1000" y1="0" x2="1000" y2="630"/>
+  </g>
+
+  <!-- Glow blob top-right -->
+  <ellipse cx="1050" cy="180" rx="320" ry="220" fill="#4f46e5" fill-opacity="0.07"/>
+
+  <!-- Large decorative monogram -->
+  <text x="1020" y="520" font-family="Georgia,serif" font-size="480" font-weight="700"
+        fill="#4f46e5" fill-opacity="0.04" text-anchor="middle">CR</text>
+
+  <!-- Left accent bar -->
+  <rect x="80" y="185" width="4" height="260" fill="url(#accent)" rx="2"/>
+
+  <!-- Name -->
+  <text x="116" y="285"
+        font-family="-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif"
+        font-size="80" font-weight="700" fill="#ffffff" letter-spacing="-3">Chris Rose</text>
+
+  <!-- Role line 1 -->
+  <text x="117" y="340"
+        font-family="-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif"
+        font-size="26" font-weight="400" fill="#818cf8">Technology Executive · Cybersecurity Leader</text>
+
+  <!-- Divider -->
+  <rect x="117" y="365" width="520" height="1" fill="#4f46e5" fill-opacity="0.5" rx="1"/>
+
+  <!-- Company + location -->
+  <text x="117" y="398"
+        font-family="-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif"
+        font-size="20" font-weight="400" fill="#ffffff" fill-opacity="0.35">VP · Aseva · Santa Barbara, CA</text>
+
+  <!-- Domain badge -->
+  <rect x="117" y="425" width="228" height="34" rx="17" fill="#4f46e5" fill-opacity="0.18"/>
+  <text x="231" y="447"
+        font-family="-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif"
+        font-size="16" font-weight="500" fill="#818cf8" text-anchor="middle">chrislrose.aseva.ai</text>
+
+  <!-- Dot grid decoration bottom-right -->
+  <g fill="#818cf8" fill-opacity="0.15">
+    <circle cx="950" cy="560" r="3"/><circle cx="975" cy="560" r="3"/><circle cx="1000" cy="560" r="3"/>
+    <circle cx="1025" cy="560" r="3"/><circle cx="1050" cy="560" r="3"/><circle cx="1075" cy="560" r="3"/>
+    <circle cx="1100" cy="560" r="3"/><circle cx="950" cy="535" r="3"/><circle cx="975" cy="535" r="3"/>
+    <circle cx="1000" cy="535" r="3"/><circle cx="1025" cy="535" r="3"/><circle cx="1050" cy="535" r="3"/>
+    <circle cx="1075" cy="535" r="3"/><circle cx="1100" cy="535" r="3"/><circle cx="950" cy="510" r="3"/>
+    <circle cx="975" cy="510" r="3"/><circle cx="1000" cy="510" r="3"/><circle cx="1025" cy="510" r="3"/>
+    <circle cx="1050" cy="510" r="3"/><circle cx="1075" cy="510" r="3"/><circle cx="1100" cy="510" r="3"/>
+  </g>
+</svg>

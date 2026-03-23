@@ -320,7 +320,7 @@
           showToast('Failed: ' + res.error.message, 'error');
           return;
         }
-        var shareUrl = window.location.origin + window.location.pathname + '?collection=' + id;
+        var shareUrl = 'https://chrislrose.aseva.ai/c.php?id=' + id;
         exitSelectionMode();
         showShareModal(shareUrl);
       });
