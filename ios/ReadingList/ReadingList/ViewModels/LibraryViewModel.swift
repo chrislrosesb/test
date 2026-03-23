@@ -92,12 +92,8 @@ final class LibraryViewModel {
         }
         do {
             try await SupabaseClient.shared.updateLink(id: link.id, fields: fields)
-            if let idx = allLinks.firstIndex(where: { $0.id == link.id }) {
-                var updated = allLinks[idx]
-                updated.status = status
-                updated.read = read
-                allLinks[idx] = updated  // Replace entire element to trigger @Observable
-            }
+            // Refetch all data to guarantee UI is in sync
+            allLinks = (try? await SupabaseClient.shared.fetchLinks()) ?? allLinks
         } catch {
             print("❌ updateStatus failed for \(link.id): \(error)")
             errorMessage = error.localizedDescription
@@ -107,11 +103,7 @@ final class LibraryViewModel {
     func updateStars(link: Link, stars: Int) async {
         do {
             try await SupabaseClient.shared.updateLink(id: link.id, fields: ["stars": stars])
-            if let idx = allLinks.firstIndex(where: { $0.id == link.id }) {
-                var updated = allLinks[idx]
-                updated.stars = stars
-                allLinks[idx] = updated
-            }
+            allLinks = (try? await SupabaseClient.shared.fetchLinks()) ?? allLinks
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -120,11 +112,7 @@ final class LibraryViewModel {
     func updateNote(link: Link, note: String) async {
         do {
             try await SupabaseClient.shared.updateLink(id: link.id, fields: ["note": note])
-            if let idx = allLinks.firstIndex(where: { $0.id == link.id }) {
-                var updated = allLinks[idx]
-                updated.note = note.isEmpty ? nil : note
-                allLinks[idx] = updated
-            }
+            allLinks = (try? await SupabaseClient.shared.fetchLinks()) ?? allLinks
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -134,19 +122,7 @@ final class LibraryViewModel {
         guard !fields.isEmpty else { return }
         do {
             try await SupabaseClient.shared.updateLink(id: link.id, fields: fields)
-            if let idx = allLinks.firstIndex(where: { $0.id == link.id }) {
-                var updated = allLinks[idx]
-                if let t = fields["title"] as? String { updated.title = t }
-                if let n = fields["note"] as? String { updated.note = n.isEmpty ? nil : n }
-                if let s = fields["summary"] as? String { updated.summary = s.isEmpty ? nil : s }
-                if let ta = fields["tags"] as? String { updated.tags = ta.isEmpty ? nil : ta }
-                if let c = fields["category"] as? String { updated.category = c.isEmpty ? nil : c }
-                if let s = fields["status"] as? String {
-                    updated.status = s
-                    updated.read = (s == "done")
-                }
-                allLinks[idx] = updated
-            }
+            allLinks = (try? await SupabaseClient.shared.fetchLinks()) ?? allLinks
         } catch {
             errorMessage = error.localizedDescription
         }
