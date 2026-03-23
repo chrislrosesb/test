@@ -3,6 +3,7 @@ import SwiftUI
 import FoundationModels
 #endif
 
+@MainActor
 @Observable
 final class LibraryViewModel {
     var allLinks: [Link] = []
