@@ -457,6 +457,7 @@ struct WebView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: SharedWebConfig.makeConfiguration())
         webView.allowsBackForwardNavigationGestures = true
         webView.uiDelegate = context.coordinator
+        webView.navigationDelegate = context.coordinator
         context.coordinator.parentWebView = webView
         return webView
     }
@@ -468,10 +469,38 @@ struct WebView: UIViewRepresentable {
     }
 }
 
-/// Handles OAuth popups (Sign in with Apple, Google, etc.)
-class WebViewCoordinator: NSObject, WKUIDelegate {
+/// Handles OAuth popups and redirects Apple ID auth to Safari
+class WebViewCoordinator: NSObject, WKUIDelegate, WKNavigationDelegate {
     weak var parentWebView: WKWebView?
-    private var popupWebView: WKWebView?
+
+    // Domains that should open in Safari (OAuth providers that break in WKWebView)
+    private let safariDomains = [
+        "appleid.apple.com",
+        "appleid.cdn-apple.com",
+        "idmsa.apple.com",
+        "gsa.apple.com",
+        "accounts.google.com",
+    ]
+
+    // MARK: - WKNavigationDelegate
+
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    ) {
+        if let url = navigationAction.request.url,
+           let host = url.host?.lowercased(),
+           safariDomains.contains(where: { host.contains($0) }) {
+            // Open auth URLs in Safari — they don't work in WKWebView
+            UIApplication.shared.open(url)
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
+
+    // MARK: - WKUIDelegate
 
     func webView(
         _ webView: WKWebView,
@@ -479,17 +508,18 @@ class WebViewCoordinator: NSObject, WKUIDelegate {
         for navigationAction: WKNavigationAction,
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
-        // If it's a popup (target="_blank" or window.open), load in the same webview
-        // This handles most OAuth flows including "Sign in with Apple"
-        if navigationAction.targetFrame == nil || !navigationAction.targetFrame!.isMainFrame {
-            if let url = navigationAction.request.url {
+        if let url = navigationAction.request.url {
+            let host = url.host?.lowercased() ?? ""
+            if safariDomains.contains(where: { host.contains($0) }) {
+                // Auth popup → open in Safari
+                UIApplication.shared.open(url)
+            } else if navigationAction.targetFrame == nil || !navigationAction.targetFrame!.isMainFrame {
+                // Regular popup → load in same webview
                 webView.load(URLRequest(url: url))
             }
         }
         return nil
     }
 
-    func webViewDidClose(_ webView: WKWebView) {
-        // Popup closed itself — nothing to do
-    }
+    func webViewDidClose(_ webView: WKWebView) {}
 }
