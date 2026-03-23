@@ -39,22 +39,22 @@ struct ArticleReaderContainer: View {
                 .gesture(swipeGesture)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    // Leading: close (with "finished?" prompt if not done)
+                    // Leading: close (always dismisses, no prompt)
                     ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            if currentLink.status != "done" {
-                                showFinished = true
-                            } else {
-                                dismiss()
-                            }
-                        } label: {
+                        Button { dismiss() } label: {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 17, weight: .medium))
                         }
                     }
 
-                    // Trailing: reader toggle, info, overflow
+                    // Trailing: checkmark (done), reader toggle, info, overflow
                     ToolbarItemGroup(placement: .topBarTrailing) {
+                        // Checkmark — mark as done / finished reading
+                        Button { showFinished = true } label: {
+                            Image(systemName: currentLink.status == "done" ? "checkmark.circle.fill" : "checkmark.circle")
+                                .font(.system(size: 17))
+                                .foregroundStyle(currentLink.status == "done" ? .green : .primary)
+                        }
                         // Reader/Web toggle
                         Button {
                             withAnimation(.spring(duration: 0.3)) { isReaderMode.toggle() }
