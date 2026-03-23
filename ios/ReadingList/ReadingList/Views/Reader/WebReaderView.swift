@@ -457,7 +457,6 @@ struct WebView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: SharedWebConfig.makeConfiguration())
         webView.allowsBackForwardNavigationGestures = true
         webView.uiDelegate = context.coordinator
-        webView.navigationDelegate = context.coordinator
         context.coordinator.parentWebView = webView
         return webView
     }
@@ -469,38 +468,9 @@ struct WebView: UIViewRepresentable {
     }
 }
 
-/// Handles OAuth popups and redirects Apple ID auth to Safari
-class WebViewCoordinator: NSObject, WKUIDelegate, WKNavigationDelegate {
+/// Handles popups (target="_blank" links, OAuth windows)
+class WebViewCoordinator: NSObject, WKUIDelegate {
     weak var parentWebView: WKWebView?
-
-    // Domains that should open in Safari (OAuth providers that break in WKWebView)
-    private let safariDomains = [
-        "appleid.apple.com",
-        "appleid.cdn-apple.com",
-        "idmsa.apple.com",
-        "gsa.apple.com",
-        "accounts.google.com",
-    ]
-
-    // MARK: - WKNavigationDelegate
-
-    func webView(
-        _ webView: WKWebView,
-        decidePolicyFor navigationAction: WKNavigationAction,
-        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
-    ) {
-        if let url = navigationAction.request.url,
-           let host = url.host?.lowercased(),
-           safariDomains.contains(where: { host.contains($0) }) {
-            // Open auth URLs in Safari — they don't work in WKWebView
-            UIApplication.shared.open(url)
-            decisionHandler(.cancel)
-            return
-        }
-        decisionHandler(.allow)
-    }
-
-    // MARK: - WKUIDelegate
 
     func webView(
         _ webView: WKWebView,
@@ -508,13 +478,9 @@ class WebViewCoordinator: NSObject, WKUIDelegate, WKNavigationDelegate {
         for navigationAction: WKNavigationAction,
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
-        if let url = navigationAction.request.url {
-            let host = url.host?.lowercased() ?? ""
-            if safariDomains.contains(where: { host.contains($0) }) {
-                // Auth popup → open in Safari
-                UIApplication.shared.open(url)
-            } else if navigationAction.targetFrame == nil || !navigationAction.targetFrame!.isMainFrame {
-                // Regular popup → load in same webview
+        // Load popup URLs in the same webview
+        if navigationAction.targetFrame == nil || !navigationAction.targetFrame!.isMainFrame {
+            if let url = navigationAction.request.url {
                 webView.load(URLRequest(url: url))
             }
         }
