@@ -133,6 +133,8 @@ struct IPadNavigationView: View {
 
     // MARK: - Detail Column (reader)
 
+    @State private var showDetailInfo = false
+
     @ViewBuilder
     var detailColumn: some View {
         if let link = selectedLink, let url = URL(string: link.url) {
@@ -142,7 +144,7 @@ struct IPadNavigationView: View {
                 .navigationTitle(link.title ?? link.domain ?? "Article")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
                         Button {
                             Haptics.success()
                             Task { await vm.updateStatus(link: link, status: "done") }
@@ -150,7 +152,32 @@ struct IPadNavigationView: View {
                             Image(systemName: link.status == "done" ? "checkmark.circle.fill" : "checkmark.circle")
                                 .foregroundStyle(link.status == "done" ? .green : .primary)
                         }
+                        .help("Mark as done (⇧⌘D)")
+                        .keyboardShortcut("d", modifiers: [.command, .shift])
+
+                        Button { showDetailInfo = true } label: {
+                            Image(systemName: "info.circle")
+                        }
+                        .help("Article info")
+
+                        Button {
+                            UIPasteboard.general.string = link.url
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                        }
+                        .help("Copy URL")
+
+                        Button {
+                            UIApplication.shared.open(url)
+                        } label: {
+                            Image(systemName: "safari")
+                        }
+                        .help("Open in Safari")
                     }
+                }
+                .sheet(isPresented: $showDetailInfo) {
+                    ArticleDetailView(link: link)
+                        .environment(vm)
                 }
         } else {
             ContentUnavailableView("Select an article", systemImage: "doc.text", description: Text("Choose an article to start reading"))
@@ -290,6 +317,7 @@ struct IPadArticleList: View {
                 } label: {
                     Image(systemName: "line.3.horizontal.decrease.circle")
                 }
+                .help("Filter & Sort")
             }
         }
     }

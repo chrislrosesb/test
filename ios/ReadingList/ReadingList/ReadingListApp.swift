@@ -47,7 +47,37 @@ struct ReadingListApp: App {
                     vm: ContentView.sharedLibraryVM
                 )
             }
+            #if targetEnvironment(macCatalyst)
+            .frame(minWidth: 900, minHeight: 600)
+            #endif
         }
+        #if targetEnvironment(macCatalyst)
+        .commands {
+            // Keyboard shortcuts
+            CommandGroup(after: .newItem) {
+                Button("Refresh Library") {
+                    Task { await ContentView.sharedLibraryVM.refresh() }
+                }
+                .keyboardShortcut("r", modifiers: .command)
+            }
+
+            CommandMenu("Reading") {
+                Button("Today's Reading") {
+                    showDigest = true
+                }
+                .keyboardShortcut("t", modifiers: [.command, .shift])
+
+                Divider()
+
+                Button("Enrich All") {
+                    if #available(iOS 26, *) {
+                        Task { await ContentView.sharedLibraryVM.enrichAll() }
+                    }
+                }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+            }
+        }
+        #endif
     }
 }
 
@@ -57,15 +87,27 @@ extension Notification.Name {
     static let openDigest = Notification.Name("openDigest")
 }
 
-// MARK: - App Delegate for notification handling
+// MARK: - App Delegate
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+
+        #if targetEnvironment(macCatalyst)
+        // Configure Mac window
+        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            scene.title = "Procrastinate"
+            if let titlebar = scene.titlebar {
+                titlebar.titleVisibility = .visible
+                titlebar.toolbarStyle = .unified
+            }
+            scene.sizeRestrictions?.minimumSize = CGSize(width: 900, height: 600)
+        }
+        #endif
+
         return true
     }
 
-    // Handle notification tap when app is in foreground or background
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         if response.notification.request.identifier.hasPrefix("daily-digest") {
             NotificationCenter.default.post(name: .openDigest, object: nil)
@@ -73,7 +115,6 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         completionHandler()
     }
 
-    // Show notification even when app is in foreground
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         completionHandler([.banner, .sound])
     }
