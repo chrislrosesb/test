@@ -102,10 +102,17 @@ Admin access is via a FAB button (bottom-right). Logging in activates `admin-mod
 
 ## Deployment
 
-- **Primary host:** `https://chrislrose.aseva.ai` — company-managed hosting, can run any server software
-- **Mirror:** GitHub Pages at `https://chrislrosesb.github.io/test/` (deploys from `main` branch automatically)
+- **Primary host:** `https://chrislrose.aseva.ai` — company-managed hosting, auto-deploys from `main`
+- **Mirror:** GitHub Pages at `https://chrislrosesb.github.io/test/` (also auto-deploys from `main`)
 - **Deploy process:** `git push` to `main` — no build step, files are served directly
 - **Important:** Always use the primary domain (`chrislrose.aseva.ai`) in any hardcoded URLs (bookmarklets, share links, etc.)
+- **PHP does NOT run on this server** — `.php` files are served as static file downloads. Do not create `.php` files. Use `.html` + JS for dynamic behaviour, and third-party services for anything requiring server-side logic.
+
+## Server Constraints & Workarounds
+
+- **No PHP:** `c.php` was replaced with `c.html` (static OG tags + JS redirect). Collection share URLs use `c.html?id=`.
+- **Image hotlinking:** Instagram/Threads CDN (`cdninstagram.com`, `fbcdn.net`) blocks browser requests via Referer checking. Fixed by routing those image URLs through `wsrv.nl` — a free image proxy that fetches server-side. See `proxyImage()` in `reading-list.js`.
+- **OG images must be PNG, 1200×630** — iMessage doesn't render SVG, and square images leave a white bar. Both `og-image.png` and `og-reading-list.png` are 1200×630.
 
 ---
 
@@ -123,6 +130,9 @@ Admin access is via a FAB button (bottom-right). Logging in activates `admin-mod
 ├── reading-list.js     # Reading list logic
 ├── uses.js             # Uses page logic
 ├── admin.js            # Admin panel logic
+├── c.html              # Collection share handler (OG tags + JS redirect)
+├── og-image.png        # Main site OG image (1200×630)
+├── og-reading-list.png # Reading list OG image (1200×630)
 └── CLAUDE.md           # This file — decision log
 
 .git/hooks/pre-commit   # Auto-updates ?v= cache busters on every commit
