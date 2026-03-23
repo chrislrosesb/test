@@ -166,6 +166,7 @@ struct IPadArticleList: View {
 
     @Environment(LibraryViewModel.self) private var vm
     @Environment(AuthViewModel.self) private var authVM
+    @State private var infoLink: Link? = nil
 
     var displayedLinks: [Link] {
         var result = vm.allLinks
@@ -210,12 +211,51 @@ struct IPadArticleList: View {
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
+                        Button {
+                            infoLink = link
+                        } label: {
+                            Label("Info", systemImage: "info.circle")
+                        }
+                        .tint(.indigo)
+                    }
+                    .contextMenu {
+                        Button { infoLink = link } label: {
+                            Label("Info", systemImage: "info.circle")
+                        }
+                        Divider()
+                        Button { UIPasteboard.general.string = link.url } label: {
+                            Label("Copy URL", systemImage: "doc.on.doc")
+                        }
+                        Button {
+                            guard let url = URL(string: link.url) else { return }
+                            UIApplication.shared.open(url)
+                        } label: {
+                            Label("Open in Safari", systemImage: "safari")
+                        }
+                        Divider()
+                        Button { Task { await vm.updateStatus(link: link, status: "to-read") } } label: {
+                            Label("To Read", systemImage: "book")
+                        }
+                        Button { Task { await vm.updateStatus(link: link, status: "to-try") } } label: {
+                            Label("To Do", systemImage: "hammer")
+                        }
+                        Button { Task { await vm.updateStatus(link: link, status: "done") } } label: {
+                            Label("Done", systemImage: "checkmark.circle")
+                        }
+                        Divider()
+                        Button(role: .destructive) { Task { await vm.delete(link: link) } } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
                     }
             }
         }
         .listStyle(.sidebar)
         .navigationTitle(navTitle)
         .refreshable { await vm.refresh() }
+        .sheet(item: $infoLink) { link in
+            ArticleDetailView(link: link)
+                .environment(vm)
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
