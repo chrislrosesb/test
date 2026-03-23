@@ -46,7 +46,7 @@ $imageUrl       = $BASE_URL . '/c.php?id=' . urlencode($id) . '&img=1';
 
 // ── SVG image mode ────────────────────────────────────────────────────────────
 if ($img) {
-    header('Content-Type: image/svg+xml');
+    header('Content-Type: image/png');
     header('Cache-Control: public, max-age=3600');
 
     // Truncate long strings for the image
@@ -184,7 +184,7 @@ $readingListEsc = htmlspecialchars($readingListUrl, ENT_QUOTES);
   <meta property="og:image"       content="<?= $imageUrlEsc ?>"/>
   <meta property="og:image:width"  content="1200"/>
   <meta property="og:image:height" content="630"/>
-  <meta property="og:image:type"   content="image/svg+xml"/>
+  <meta property="og:image:type"   content="image/png"/>
 
   <!-- Twitter / X Card -->
   <meta name="twitter:card"        content="summary_large_image"/>
