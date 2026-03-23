@@ -16,6 +16,7 @@ struct LibraryView: View {
     @State private var isCurating = false
     @State private var curateSelection: Set<String> = []
     @State private var showCurateSheet = false
+    @State private var infoLink: Link? = nil
     @AppStorage("libraryViewMode") private var viewMode: String = "cards"
 
     var navTitle: String {
@@ -148,6 +149,10 @@ struct LibraryView: View {
                 curateSelection.removeAll()
             }
         }
+        .sheet(item: $infoLink) { link in
+            ArticleDetailView(link: link)
+                .environment(vm)
+        }
     }
 
     // MARK: - Article List
@@ -239,6 +244,12 @@ struct LibraryView: View {
                         Label("Status", systemImage: "tag")
                     }
                     .tint(.blue)
+                    Button {
+                        infoLink = link
+                    } label: {
+                        Label("Info", systemImage: "info.circle")
+                    }
+                    .tint(.indigo)
                 }
                 .contextMenu { if !isCurating { contextMenu(for: link) } }
                 .listRowSeparator(.hidden)
@@ -255,6 +266,12 @@ struct LibraryView: View {
 
     @ViewBuilder
     func contextMenu(for link: Link) -> some View {
+        Button {
+            infoLink = link
+        } label: {
+            Label("Info", systemImage: "info.circle")
+        }
+        Divider()
         Button {
             UIPasteboard.general.string = link.url
         } label: {
