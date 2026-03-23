@@ -12,6 +12,7 @@ struct ArticleReaderContainer: View {
     @State private var showInfo = false
     @State private var showTypography = false
     @State private var showFinished = false
+    @State private var showSafariView = false
     @State private var isReaderMode = false
 
     @AppStorage("readerFontSize") private var fontSize: Double = 17
@@ -74,6 +75,9 @@ struct ArticleReaderContainer: View {
                             Button { showTypography = true } label: {
                                 Label("Typography", systemImage: "textformat.size")
                             }
+                            Button { showSafariView = true } label: {
+                                Label("Open with Login", systemImage: "person.badge.key")
+                            }
                             Button {
                                 guard let url = URL(string: currentLink.url) else { return }
                                 UIApplication.shared.open(url)
@@ -104,6 +108,12 @@ struct ArticleReaderContainer: View {
             FinishedReadingSheet(link: currentLink, vm: vm) {
                 showFinished = false
                 dismiss()
+            }
+        }
+        .sheet(isPresented: $showSafariView) {
+            if let url = URL(string: currentLink.url) {
+                SafariSheet(url: url)
+                    .ignoresSafeArea()
             }
         }
     }
@@ -165,5 +175,22 @@ struct ArticleReaderContainer: View {
             topController.present(av, animated: true)
         }
     }
+}
+
+// MARK: - Safari View (shares Safari's cookies/logins)
+
+import SafariServices
+
+struct SafariSheet: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let vc = SFSafariViewController(url: url)
+        vc.preferredBarTintColor = .systemBackground
+        vc.preferredControlTintColor = .tintColor
+        return vc
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
 }
 
