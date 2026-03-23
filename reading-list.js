@@ -496,6 +496,7 @@
       var card = document.createElement('article');
       card.className = 'link-card anim-fade-up';
       card.dataset.id = link.id;
+      card.dataset.imageUrl = link.image || '';
       if (link.status) card.classList.add('status-' + link.status);
 
       // Thumbnail image HTML
