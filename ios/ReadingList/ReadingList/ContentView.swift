@@ -16,7 +16,10 @@ struct ContentView: View {
                 iPhoneLayout
             }
         }
-        .task { await libraryVM.load() }
+        .task {
+            await libraryVM.load()
+            await SubtaskStore.shared.loadAll()
+        }
     }
 
     // MARK: - iPhone (TabView)
