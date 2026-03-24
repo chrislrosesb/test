@@ -279,6 +279,13 @@ struct IPadArticleList: View {
                             Label("Delete", systemImage: "trash")
                         }
                         Button {
+                            Haptics.success()
+                            Task { await vm.updateStatus(link: link, status: "to-try") }
+                        } label: {
+                            Label("Do", systemImage: "hammer")
+                        }
+                        .tint(.blue)
+                        Button {
                             infoLink = link
                         } label: {
                             Label("Info", systemImage: "info.circle")

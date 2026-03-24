@@ -244,18 +244,11 @@ struct LibraryView: View {
                     } label: {
                         Label("Delete", systemImage: "trash")
                     }
-                    Menu {
-                        Button { Task { await vm.updateStatus(link: link, status: "to-read") } } label: {
-                            Label("To Read", systemImage: "book")
-                        }
-                        Button { Task { await vm.updateStatus(link: link, status: "to-try") } } label: {
-                            Label("To Do", systemImage: "hammer")
-                        }
-                        Button { Task { await vm.updateStatus(link: link, status: "done") } } label: {
-                            Label("Done", systemImage: "checkmark.circle")
-                        }
+                    Button {
+                        Haptics.success()
+                        Task { await vm.updateStatus(link: link, status: "to-try") }
                     } label: {
-                        Label("Status", systemImage: "tag")
+                        Label("Do", systemImage: "hammer")
                     }
                     .tint(.blue)
                     Button {
