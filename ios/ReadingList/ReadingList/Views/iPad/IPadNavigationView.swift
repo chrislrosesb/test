@@ -249,6 +249,8 @@ struct IPadArticleList: View {
         return result
     }
 
+    var isDoTab: Bool { statusFilter == "to-try" }
+
     var navTitle: String {
         switch statusFilter {
         case "to-read": return "Read"
@@ -260,6 +262,22 @@ struct IPadArticleList: View {
     var body: some View {
         List(selection: $selectedLink) {
             ForEach(displayedLinks) { link in
+                if isDoTab {
+                    TaskRowView(link: link, onToggleDone: {
+                        Task { await vm.updateStatus(link: link, status: "done") }
+                    }, onTap: {
+                        selectedLink = link
+                    })
+                    .tag(link)
+                    .listRowSeparator(.hidden)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            Task { await vm.delete(link: link) }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                } else {
                 iPadRow(link: link)
                     .tag(link)
                     .listRowSeparator(.visible)
@@ -321,6 +339,7 @@ struct IPadArticleList: View {
                             Label("Delete", systemImage: "trash")
                         }
                     }
+                } // end else
             }
         }
         .listStyle(.plain)
