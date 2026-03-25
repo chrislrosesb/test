@@ -94,6 +94,7 @@ Each link has: `url`, `title`, `description`, `image`, `favicon`, `domain`, `cat
 - `links` — all saved links
 - `categories` — managed list with `name` + `sort_order`
 - `collections` — shared curated link bundles (`id`, `recipient`, `message`, `link_ids[]`, `created_at`)
+- `subtasks` — subtasks for Do-tab items (`id` UUID, `link_id`, `text`, `is_done`, `created_at`); has `on delete cascade` from links
 
 ### Admin
 Admin access is via a FAB button (bottom-right). Logging in activates `admin-mode` class on `<body>`, which shows edit/delete/status buttons on cards. Admin can add, edit, delete links and manage categories.
@@ -159,7 +160,7 @@ Key points:
 
 - **`@Observable` + `@MainActor`** throughout — `LibraryViewModel` is the single source of truth
 - **`SupabaseClient.shared`** — raw URLSession + JSONDecoder, no SDK
-- **`SubtaskStore.shared`** — `@Observable` singleton, local-only persistence via `UserDefaults` + `Codable`
+- **`SubtaskStore.shared`** — `@Observable` singleton, Supabase-backed (was UserDefaults, migrated to Supabase `subtasks` table for cross-device sync)
 - Tabs (in order): **Read → Do → Library → Search** — defaults to Read tab on launch
 - `TabView(selection: $selectedTab)` with `@State private var selectedTab = "read"` in ContentView
 
@@ -171,7 +172,7 @@ ios/ReadingList/ReadingList/
 ├── Models/
 │   ├── Link.swift                  # Core data model (NOT SwiftUI.Link — naming conflict in IDE, builds fine)
 │   ├── Category.swift
-│   └── Subtask.swift               # Local subtask model + SubtaskStore singleton
+│   └── Subtask.swift               # Subtask model + SubtaskStore (Supabase-backed, syncs across devices)
 ├── ViewModels/
 │   └── LibraryViewModel.swift      # All data, filters, AI search, enrich all
 ├── Views/
@@ -183,8 +184,10 @@ ios/ReadingList/ReadingList/
 │   │   ├── TagCloudView.swift      # Full-screen weighted tag cloud, tap to filter
 │   │   ├── TaskRowView.swift       # Do-tab rows with inline subtask expand/collapse
 │   │   └── SubtaskEditorView.swift # Half-sheet subtask manager
+│   ├── iPad/
+│   │   └── IPadNavigationView.swift # iPad/Mac: NavigationSplitView, portrait reading mode, Do tab uses TaskRowView
 │   └── ...
-└── Services/
+└── Supabase/
     └── SupabaseClient.swift
 ```
 
@@ -211,15 +214,26 @@ ios/ReadingList/ReadingList/
 - `tagCounts` computed property on `LibraryViewModel` parses comma-separated tags
 
 **Subtasks (`SubtaskStore`, `TaskRowView`, `SubtaskEditorView`)**
-- Local-only (not synced to Supabase) — stored in `UserDefaults` keyed by link ID
+- **Supabase-backed** — syncs across iPhone, iPad, and Mac via `subtasks` table
+- `SubtaskStore.shared.loadAll()` called at app startup in ContentView
 - Long-press any Do-tab item → context menu → "Manage Subtasks" (`.contextMenu` used instead of `.onLongPressGesture` because inner Buttons swallow gestures in SwiftUI List)
 - Inline expand/collapse with spring animation and mini progress capsule
 - `SubtaskEditorView`: half-sheet (`.presentationDetents([.medium, .large])`), staggered entrance animation, auto-focuses add field
+- **iPad/Mac Do tab** uses `TaskRowView` (same as iPhone) for full subtask support
 
 **Editable fields in ArticleDetailView**
 - Title: tap to edit inline (TextField + Save/Cancel)
 - Category: Menu picker from `vm.categories` + "None" option
 - Tags: tap to edit comma-separated TextField; normalizes to lowercase on save; always visible with "Add tags…" placeholder
+
+**Swipe actions (iPhone)**
+- Swipe right: Done/Undo toggle (green)
+- Swipe left: Delete (red), Do (blue, sets status to "to-try"), Info (indigo)
+
+**iPad/Mac specific**
+- `NavigationSplitView` with sidebar (Read/Do/Library), article list, reader
+- Portrait reading mode: auto-collapses to `.detailOnly` when article selected, back button to return
+- Do tab uses `TaskRowView` with subtask support (same as iPhone)
 
 ### iOS App — Known Issues / Gotchas
 
@@ -227,16 +241,25 @@ ios/ReadingList/ReadingList/
 - **Mac Catalyst SourceKit warnings:** `topBarLeading`, `topBarTrailing`, `navigationBarTitleDisplayMode` show as "unavailable in macOS" in the IDE but are fully supported on Mac Catalyst (iOS APIs via Catalyst). These are false positives — ignore them.
 - **PBXFileSystemSynchronizedRootGroup:** The Xcode project uses filesystem-synced groups. New `.swift` files added to the correct folder are automatically included in the target — no need to manually edit `project.pbxproj` to add sources.
 - **Deployment:** `chrislrose.aseva.ai` is company-managed and does NOT auto-deploy from GitHub pushes. GitHub Pages mirror auto-deploys. To update the primary site, manual deployment is needed (SSH access required).
+- **Subtask sync:** Subtasks migrated from local UserDefaults to Supabase. Old local subtasks do NOT migrate — only new ones sync. If subtasks are not syncing, verify the `subtasks` table exists in Supabase and the RLS policies allow public CRUD.
+- **Mac app distribution:** Without $99/year Apple Developer account, the Mac Catalyst app must be built from Xcode and manually copied to `/Applications`. Free provisioning certificates expire every 7 days. With paid account: Product → Archive → Distribute App → Direct Distribution.
 
 ### Website — OG / Social Previews
 
 All HTML pages have Open Graph and Twitter Card meta tags for iMessage/social rich link previews:
 - `og-image.png` — main site preview (1200×630, dark indigo)
 - `og-reading-list.png` — reading list preview
-- `c.php` — dynamic collection share handler: fetches Supabase collection, outputs per-recipient OG tags, JS-redirects users to reading-list.html
-- Collection share URLs use `c.php?id=` (not `?collection=`) — set in `reading-list.js`
+- `c.html` — static collection share handler with OG tags + JS redirect to `reading-list.html?collection=ID`
+- Collection share URLs use `c.html?id=` — set in `reading-list.js`
 - OG images must be **PNG** (not SVG) — iMessage and most crawlers do not render SVG
+
+### iOS Shortcut ("add-to-reading-list")
+
+- Syncs across iPhone, iPad, Mac via iCloud
+- Flow: Receive Any from Share Sheet → Get URLs from Input → construct `reading-list.html?add=URL` → Open
+- Works on iOS (all apps), Mac Safari. Mac RSS apps (e.g., ReadKit) may not pass URLs through share sheet properly — clipboard workaround needed.
+- **Must be logged into admin mode** on `chrislrose.aseva.ai` in the device's browser for silent quickSave. First use on a new device requires one-time admin login.
 
 ---
 
-*Last updated: 2026-03-22 by Claude Code*
+*Last updated: 2026-03-25 by Claude Code*
