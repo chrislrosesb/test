@@ -287,6 +287,9 @@ The website (`reading-list.js`) has no access to Foundation Models. If a website
 - **Deployment:** `chrislrose.aseva.ai` is company-managed and does NOT auto-deploy from GitHub pushes. GitHub Pages mirror auto-deploys. To update the primary site, manual deployment is needed (SSH access required).
 - **Subtask sync:** Subtasks migrated from local UserDefaults to Supabase. Old local subtasks do NOT migrate — only new ones sync. If subtasks are not syncing, verify the `subtasks` table exists in Supabase and the RLS policies allow public CRUD.
 - **Mac app distribution:** Without $99/year Apple Developer account, the Mac Catalyst app must be built from Xcode and manually copied to `/Applications`. Free provisioning certificates expire every 7 days. With paid account: Product → Archive → Distribute App → Direct Distribution.
+- **iOS 26 Form buttons must use `.buttonStyle(.plain)`:** In iOS 26's Liquid Glass List rendering, buttons inside Form rows (especially multiple buttons in an HStack) will not fire reliably without explicit `.buttonStyle(.plain)`. Always add this to any Cancel/Save or action buttons placed inside a `Form`/`List` `Section`. Also use `@FocusState` on `TextEditor` fields to explicitly dismiss focus before saving.
+- **`ArticleDetailView` is Form-based (not ScrollView):** Rewritten in the Curate AI commit. Contains: title row (tap to edit inline), status + category, rating (stars), tags, AI summary (read-only), note. All editable fields use the tap-to-edit inline pattern with Cancel/Save buttons.
+- **`EnrichSheetView` is dead code:** After the `ArticleDetailView` rewrite, no view presents `EnrichSheetView`. Enrich with AI is still available via `LibraryView` toolbar menu → "Enrich All". Single-article enrich needs to be re-wired if needed.
 
 ### Website — OG / Social Previews
 
@@ -336,6 +339,11 @@ All HTML pages have Open Graph and Twitter Card meta tags for iMessage/social ri
 - Website `renderCollectionBanner` already renders `enriched_message` as paragraphs when present
 - Falls back to basic link creation (no AI message) on iOS < 26
 
+### Bug Fix — ArticleDetailView Note/Title/Tags Save (2026-03-25)
+- **Bug:** After the Curate AI commit rewrote `ArticleDetailView` from ScrollView → Form, the inline Cancel/Save buttons in note/title/tags editing rows stopped working.
+- **Cause:** iOS 26 Liquid Glass List rendering intercepts row-level taps before individual buttons fire unless buttons have `.buttonStyle(.plain)`.
+- **Fix:** Added `.buttonStyle(.plain)` to all Cancel/Save buttons in `noteRow`, `titleRow`, `tagsRow`. Added `@FocusState` (`noteEditorFocused`) to `ArticleDetailView` so the TextEditor keyboard is explicitly dismissed before note save fires.
+
 ### Potential Next Steps
 - **Supabase schema:** Add `note_updated_at` column to `links` table so Notes Review can filter by when the note was actually written (currently filters by `savedAt`)
 - **Notes Review:** Consider a "week-at-a-glance" calendar view showing which days had saved articles with notes
@@ -345,4 +353,4 @@ All HTML pages have Open Graph and Twitter Card meta tags for iMessage/social ri
 
 ---
 
-*Last updated: 2026-03-25 by Claude Code*
+*Last updated: 2026-03-25 (session 2) by Claude Code*
