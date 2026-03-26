@@ -228,6 +228,39 @@ ios/ReadingList/ReadingList/
 - Switching date range or regenerating resets all added-item state
 - Key bug fix: whitespace-only notes (e.g. `" "`) are trimmed before emptiness check so they never appear
 
+**Knowledge Synthesis (`KnowledgeSynthesisView`)**
+- Entry: toolbar Menu → "Knowledge Synthesis" (iPhone), sidebar under Discover (iPad/Mac)
+- User types a natural language question ("What do I know about LLMs?")
+- Scores entire library for relevance — prefers articles with full text digests, then summary+note
+- Top 12 passed to Foundation Models, returns three labelled sections: **SYNTHESIS** (2-3 para briefing), **GAPS** (what's missing from your understanding), **NEXT STEP** (one concrete action)
+- Sources list below shows which articles were used; tapping opens the reader; "Full text" badge shown on deep-saved articles
+- Idle state shows example queries you can tap to run immediately
+
+**Full Text Save (`ArticleFullTextStore`, `ArticleExtractor`, `ArticleDigestEngine`)**
+- Stores article full text + AI digest **on-device only via SwiftData** — never goes to Supabase, zero server cost
+- `ArticleExtractor`: loads URL in a hidden WKWebView, injects JS to find main content element (`article`/`main`/largest-div heuristic), returns clean text capped at 15 000 chars. Handles JS-rendered pages; gracefully fails paywalled content.
+- `ArticleDigestEngine`: Foundation Models generates a ~200-word per-article digest from the raw text + existing metadata (note, tags, summary). More analytical than Enrich summary — designed for synthesis use.
+- `ArticleFullTextStore`: SwiftData singleton with its own `ModelContainer`. Methods: `fetch(linkId:)`, `save(...)`, `delete(linkId:)`. No setup required in App file.
+- Storage: ~5KB/article avg → 1 000 articles ≈ 5 MB on device
+
+**Auto-save full text triggers**
+- **Adding a note for the first time**: when you tap Save on a note that was previously empty, full text fetch + digest generation fires in the background if not already saved. Edit to existing note does NOT re-trigger.
+- **Rating 5 stars**: tapping the 5th star auto-triggers full text save if not already saved.
+- Both are silent background operations — `deepSavePhase` in `ArticleDetailView` updates to show the result, but no blocking UI.
+
+**Full text in `ArticleDetailView`**
+- "Full Text" section at bottom of the info Form
+- Shows: Save Full Text / saving progress / "Saved · N words · date" with Re-fetch and Delete options
+- Deep save button also available for manual save on any article
+- On `.task` load: checks store and restores phase to `.saved(...)` if already saved
+
+**All AI features now use full text digests when available**
+- `notesContext(from:to:)` — Notes Review: prefers digest, falls back to summary
+- `todaysSavedContext` — Daily Digest: prefers digest, falls back to summary, then note
+- `CurateSheetView.generateMessage()` — Curate AI message: prefers digest, falls back to summary
+- `libraryStatsContext` — Library Insights: **unchanged** — uses aggregate stats, not per-article content
+- Pattern: `if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty { use digest } else { use summary/note }`
+
 **Enrich with AI (`EnrichSheetView` / `EnrichEngine`)**
 - Uses `LanguageModelSession` (Foundation Models, iOS 26 only)
 - Falls back gracefully with `ContentUnavailableView` on older OS / devices without Apple Intelligence
