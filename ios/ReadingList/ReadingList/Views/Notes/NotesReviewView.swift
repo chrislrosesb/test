@@ -25,7 +25,7 @@ private enum NotesRange: String, CaseIterable, Identifiable {
             let start = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: now)) ?? now
             return (start, now)
         case .custom:
-            return (now, now) // placeholder — overridden by customStart/customEnd in view
+            return (now, now) // overridden by customStart/customEnd
         }
     }
 }
@@ -33,7 +33,7 @@ private enum NotesRange: String, CaseIterable, Identifiable {
 private enum NotesPhase {
     case idle
     case generating
-    case ready(recap: String, actionItems: [String])
+    case ready(recap: String, actionItems: [(text: String, sourceIndex: Int?)])
     case unavailable(String)
     case error(String)
 }
@@ -46,6 +46,7 @@ struct NotesReviewView: View {
     @State private var customStart: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     @State private var customEnd: Date = Date()
     @State private var phase: NotesPhase = .idle
+    @State private var addedActionItems: Set<Int> = []
     @State private var selectedLink: Link? = nil
 
     private var dateRange: (start: Date, end: Date) {
@@ -96,15 +97,20 @@ struct NotesReviewView: View {
                         .fontWeight(.semibold)
                 }
             }
-            .onChange(of: selectedRange)  { _, _ in phase = .idle }
-            .onChange(of: customStart)    { _, _ in phase = .idle }
-            .onChange(of: customEnd)      { _, _ in phase = .idle }
+            .onChange(of: selectedRange) { _, _ in resetState() }
+            .onChange(of: customStart)   { _, _ in resetState() }
+            .onChange(of: customEnd)     { _, _ in resetState() }
         }
         .fullScreenCover(item: $selectedLink) { link in
             if let idx = notedLinks.firstIndex(where: { $0.id == link.id }) {
                 ArticleReaderContainer(links: notedLinks, initialIndex: idx, vm: vm)
             }
         }
+    }
+
+    func resetState() {
+        phase = .idle
+        addedActionItems = []
     }
 
     // MARK: - Header
@@ -221,7 +227,7 @@ struct NotesReviewView: View {
 
     // MARK: - Action Items
 
-    func actionItemsSection(_ items: [String]) -> some View {
+    func actionItemsSection(_ items: [(text: String, sourceIndex: Int?)]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Action Items")
                 .font(.headline)
@@ -235,8 +241,21 @@ struct NotesReviewView: View {
                         .foregroundStyle(.white)
                         .frame(width: 20, height: 20)
                         .background(Color.indigo, in: Circle())
-                    Text(item)
+
+                    Text(item.text)
                         .font(.subheadline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if !addedActionItems.contains(i) {
+                        Button {
+                            Task { await addSubtask(actionIndex: i, item: item) }
+                        } label: {
+                            Label("Add to Do", systemImage: "plus.circle")
+                                .font(.caption)
+                                .tint(.indigo)
+                        }
+                        .buttonStyle(.borderless)
+                    }
                 }
                 .padding(.horizontal, 20)
             }
@@ -246,36 +265,45 @@ struct NotesReviewView: View {
     // MARK: - Articles List
 
     var articlesSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("Articles with Notes")
                 .font(.title3)
                 .fontWeight(.bold)
                 .padding(.horizontal, 20)
 
             ForEach(notedLinks) { link in
-                VStack(alignment: .leading, spacing: 6) {
-                    ArticleCardView(link: link)
-                        .contentShape(Rectangle())
-                        .onTapGesture { selectedLink = link }
-
-                    if let note = link.note,
-                       !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        HStack(alignment: .top, spacing: 6) {
-                            Image(systemName: "quote.opening")
-                                .font(.caption2)
-                                .foregroundStyle(.indigo)
-                                .padding(.top, 1)
-                            Text(note.trimmingCharacters(in: .whitespacesAndNewlines))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(3)
-                        }
-                        .padding(.horizontal, 4)
-                    }
-                }
-                .padding(.horizontal, 16)
+                NoteReviewCardView(link: link)
+                    .padding(.horizontal, 16)
+                    .contentShape(Rectangle())
+                    .onTapGesture { selectedLink = link }
             }
         }
+    }
+
+    // MARK: - Add Subtask Logic
+
+    func addSubtask(actionIndex: Int, item: (text: String, sourceIndex: Int?)) async {
+        let links = notedLinks
+        guard !links.isEmpty else { return }
+
+        // Find source article by AI-provided index (1-based), fall back to first article
+        let sourceLink: Link
+        if let idx = item.sourceIndex, idx >= 1, idx <= links.count {
+            sourceLink = links[idx - 1]
+        } else {
+            sourceLink = links[0]
+        }
+
+        // Move to Do if not already there
+        if sourceLink.status != "to-try" {
+            await vm.updateStatus(link: sourceLink, status: "to-try")
+        }
+
+        // Add subtask (synchronous + fire-and-forget to Supabase)
+        SubtaskStore.shared.add(text: item.text, to: sourceLink.id)
+
+        // Hide the button
+        addedActionItems.insert(actionIndex)
     }
 
     // MARK: - AI Logic
@@ -287,6 +315,7 @@ struct NotesReviewView: View {
             return
         }
         phase = .generating
+        addedActionItems = []
         if #available(iOS 26, *) {
             await runFoundationModelsNotes()
         } else {
@@ -321,7 +350,9 @@ struct NotesReviewView: View {
         Up to 5 specific follow-ups I flagged in my notes that I should act on. \
         Only include items genuinely suggested by my notes — don't invent things. \
         If fewer than 5 are present, list only what's there. \
-        Format each as a single sentence starting with a verb.
+        Prefix each item with [N] where N is the number of the article from the list above \
+        that the action came from, then write the action as a single sentence starting with a verb. \
+        Example: [2] Read the full series on typography.
 
         Be personal and direct. Use "you" and quote or paraphrase my actual notes.
         """
@@ -344,7 +375,7 @@ struct NotesReviewView: View {
         #endif
     }
 
-    func parseNotesResponse(_ raw: String) -> (recap: String, actionItems: [String]) {
+    func parseNotesResponse(_ raw: String) -> (recap: String, actionItems: [(text: String, sourceIndex: Int?)]) {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard let recapRange  = text.range(of: "RECAP:", options: .caseInsensitive),
@@ -358,18 +389,65 @@ struct NotesReviewView: View {
         let actionBlock = String(text[actionRange.upperBound...])
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let actionItems = actionBlock
+        let actionItems: [(text: String, sourceIndex: Int?)] = actionBlock
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-            .map { line -> String in
-                var result = line
-                if let range = result.range(of: #"^(\d+\.\s*|[-•]\s*)"#, options: .regularExpression) {
-                    result = String(result[range.upperBound...])
+            .compactMap { line -> (text: String, sourceIndex: Int?)? in
+                var cleaned = line
+
+                // Strip leading "1. ", "- ", "• " etc.
+                if let range = cleaned.range(of: #"^(\d+\.\s*|[-•]\s*)"#, options: .regularExpression) {
+                    cleaned = String(cleaned[range.upperBound...])
                 }
-                return result
+
+                // Extract [N] source index prefix
+                var sourceIndex: Int? = nil
+                let bracketPattern = #"^\[(\d+)\]\s*"#
+                if let bracketRange = cleaned.range(of: bracketPattern, options: .regularExpression) {
+                    // Extract the number between [ ]
+                    let bracketStr = String(cleaned[bracketRange])
+                    if let numRange = bracketStr.range(of: #"\d+"#, options: .regularExpression),
+                       let num = Int(bracketStr[numRange]) {
+                        sourceIndex = num
+                    }
+                    cleaned = String(cleaned[bracketRange.upperBound...])
+                }
+
+                let finalText = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !finalText.isEmpty else { return nil }
+                return (text: finalText, sourceIndex: sourceIndex)
             }
 
         return (recap, actionItems)
+    }
+}
+
+// MARK: - Note-First Card
+
+private struct NoteReviewCardView: View {
+    let link: Link
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(link.title ?? link.url)
+                    .font(.headline)
+                    .lineLimit(2)
+                Text(link.domain ?? "")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+
+            Divider()
+
+            Text(link.note?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "")
+                .font(.body)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+        }
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
     }
 }
