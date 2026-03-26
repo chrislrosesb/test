@@ -5,6 +5,7 @@ enum SidebarItem: String, Hashable, CaseIterable {
     case read = "Read"
     case toDo = "Do"
     case sources = "Sources"
+    case insights = "Insights"
     case search = "Search"
     case profile = "Profile"
 
@@ -14,6 +15,7 @@ enum SidebarItem: String, Hashable, CaseIterable {
         case .read: return "book"
         case .toDo: return "hammer"
         case .sources: return "globe"
+        case .insights: return "chart.bar.xaxis.ascending.badge.clock"
         case .search: return "magnifyingglass"
         case .profile: return "person.circle"
         }
@@ -32,10 +34,12 @@ struct IPadNavigationView: View {
     @Environment(LibraryViewModel.self) private var vm
     @Environment(AuthViewModel.self) private var authVM
 
-    @State private var selectedSidebar: SidebarItem? = .library
+    @State private var selectedSidebar: SidebarItem? = .read
     @State private var selectedLink: Link? = nil
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     @State private var isPortrait: Bool = UIScreen.main.bounds.height > UIScreen.main.bounds.width
+    @State private var isFullScreen = false
+    @State private var isInfoMode = false
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -60,8 +64,8 @@ struct IPadNavigationView: View {
                         let nowPortrait = size.height > size.width
                         if nowPortrait != isPortrait {
                             isPortrait = nowPortrait
-                            // Rotating to landscape — restore columns
-                            if !nowPortrait {
+                            // Rotating to landscape — restore columns (unless fullscreen)
+                            if !nowPortrait && !isFullScreen {
                                 columnVisibility = .automatic
                             }
                             // Rotating to portrait with article open — go full-screen
@@ -76,6 +80,10 @@ struct IPadNavigationView: View {
             if isPortrait {
                 columnVisibility = newLink != nil ? .detailOnly : .automatic
             }
+            if newLink == nil && isFullScreen {
+                isFullScreen = false
+                columnVisibility = .automatic
+            }
         }
     }
 
@@ -84,17 +92,19 @@ struct IPadNavigationView: View {
     var sidebarContent: some View {
         List(selection: $selectedSidebar) {
             Section("Reading") {
-                Label("Library", systemImage: "books.vertical")
-                    .tag(SidebarItem.library)
                 Label("Read", systemImage: "book")
                     .tag(SidebarItem.read)
                 Label("Do", systemImage: "hammer")
                     .tag(SidebarItem.toDo)
+                Label("Library", systemImage: "books.vertical")
+                    .tag(SidebarItem.library)
             }
 
             Section("Discover") {
                 Label("Sources", systemImage: "globe")
                     .tag(SidebarItem.sources)
+                Label("Insights", systemImage: "chart.bar.xaxis.ascending.badge.clock")
+                    .tag(SidebarItem.insights)
                 Label("Search", systemImage: "magnifyingglass")
                     .tag(SidebarItem.search)
             }
@@ -134,19 +144,22 @@ struct IPadNavigationView: View {
     var contentColumn: some View {
         switch selectedSidebar {
         case .library:
-            IPadArticleList(statusFilter: nil, selectedLink: $selectedLink)
+            IPadArticleList(statusFilter: nil, selectedLink: $selectedLink, isInfoMode: $isInfoMode)
                 .environment(vm)
                 .environment(authVM)
         case .read:
-            IPadArticleList(statusFilter: "to-read", selectedLink: $selectedLink)
+            IPadArticleList(statusFilter: "to-read", selectedLink: $selectedLink, isInfoMode: $isInfoMode)
                 .environment(vm)
                 .environment(authVM)
         case .toDo:
-            IPadArticleList(statusFilter: "to-try", selectedLink: $selectedLink)
+            IPadArticleList(statusFilter: "to-try", selectedLink: $selectedLink, isInfoMode: $isInfoMode)
                 .environment(vm)
                 .environment(authVM)
         case .sources:
             SourcesView()
+                .environment(vm)
+        case .insights:
+            LibraryInsightsView()
                 .environment(vm)
         case .search:
             SearchView()
@@ -166,59 +179,85 @@ struct IPadNavigationView: View {
 
     @ViewBuilder
     var detailColumn: some View {
-        if let link = selectedLink, let url = URL(string: link.url) {
-            WebView(url: url)
-                .id(link.id)
-                .ignoresSafeArea(edges: .bottom)
-                .navigationTitle(link.title ?? link.domain ?? "Article")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    if isPortrait {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button {
-                                selectedLink = nil
-                                columnVisibility = .automatic
-                            } label: {
-                                Image(systemName: "chevron.left")
+        if let link = selectedLink {
+            if isInfoMode {
+                // Info mode: show editable metadata inline
+                ArticleDetailView(link: link)
+                    .id(link.id + "info")
+                    .environment(vm)
+            } else if let url = URL(string: link.url) {
+                WebView(url: url)
+                    .id(link.id)
+                    .ignoresSafeArea(edges: .bottom)
+                    .navigationTitle(link.title ?? link.domain ?? "Article")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        if isPortrait || isFullScreen {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button {
+                                    if isFullScreen && !isPortrait {
+                                        isFullScreen = false
+                                        columnVisibility = .automatic
+                                    } else {
+                                        selectedLink = nil
+                                        columnVisibility = .automatic
+                                    }
+                                } label: {
+                                    Image(systemName: "chevron.left")
+                                }
+                                .help(isFullScreen && !isPortrait ? "Exit full screen" : "Back to list")
                             }
-                            .help("Back to list")
+                        }
+                        ToolbarItemGroup(placement: .topBarTrailing) {
+                            Button {
+                                Haptics.success()
+                                Task { await vm.updateStatus(link: link, status: "done") }
+                            } label: {
+                                Image(systemName: link.status == "done" ? "checkmark.circle.fill" : "checkmark.circle")
+                                    .foregroundStyle(link.status == "done" ? .green : .primary)
+                            }
+                            .help("Mark as done (⇧⌘D)")
+                            .keyboardShortcut("d", modifiers: [.command, .shift])
+
+                            Button { showDetailInfo = true } label: {
+                                Image(systemName: "info.circle")
+                            }
+                            .help("Article info")
+
+                            Button {
+                                UIPasteboard.general.string = link.url
+                            } label: {
+                                Image(systemName: "doc.on.doc")
+                            }
+                            .help("Copy URL")
+
+                            Button {
+                                UIApplication.shared.open(url)
+                            } label: {
+                                Image(systemName: "safari")
+                            }
+                            .help("Open in Safari")
+
+                            // Fullscreen toggle (landscape only)
+                            if !isPortrait {
+                                Button {
+                                    isFullScreen.toggle()
+                                    columnVisibility = isFullScreen ? .detailOnly : .automatic
+                                } label: {
+                                    Image(systemName: isFullScreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                                }
+                                .help(isFullScreen ? "Exit full screen" : "Full screen")
+                                .keyboardShortcut("f", modifiers: [.command, .shift])
+                            }
                         }
                     }
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        Button {
-                            Haptics.success()
-                            Task { await vm.updateStatus(link: link, status: "done") }
-                        } label: {
-                            Image(systemName: link.status == "done" ? "checkmark.circle.fill" : "checkmark.circle")
-                                .foregroundStyle(link.status == "done" ? .green : .primary)
-                        }
-                        .help("Mark as done (⇧⌘D)")
-                        .keyboardShortcut("d", modifiers: [.command, .shift])
-
-                        Button { showDetailInfo = true } label: {
-                            Image(systemName: "info.circle")
-                        }
-                        .help("Article info")
-
-                        Button {
-                            UIPasteboard.general.string = link.url
-                        } label: {
-                            Image(systemName: "doc.on.doc")
-                        }
-                        .help("Copy URL")
-
-                        Button {
-                            UIApplication.shared.open(url)
-                        } label: {
-                            Image(systemName: "safari")
-                        }
-                        .help("Open in Safari")
+                    .sheet(isPresented: $showDetailInfo) {
+                        ArticleDetailView(link: link)
+                            .environment(vm)
                     }
-                }
-                .sheet(isPresented: $showDetailInfo) {
-                    ArticleDetailView(link: link)
-                        .environment(vm)
-                }
+            } else {
+                ContentUnavailableView("Invalid URL", systemImage: "link.badge.plus")
+            }
         } else {
             ContentUnavailableView("Select an article", systemImage: "doc.text", description: Text("Choose an article to start reading"))
         }
@@ -230,6 +269,7 @@ struct IPadNavigationView: View {
 struct IPadArticleList: View {
     let statusFilter: String?
     @Binding var selectedLink: Link?
+    @Binding var isInfoMode: Bool
 
     @Environment(LibraryViewModel.self) private var vm
     @Environment(AuthViewModel.self) private var authVM
@@ -380,10 +420,17 @@ struct IPadArticleList: View {
                             Label("Top Rated", systemImage: vm.sortByStars ? "checkmark" : "star.fill")
                         }
                     }
+                    Section {
+                        Button {
+                            isInfoMode.toggle()
+                        } label: {
+                            Label(isInfoMode ? "Exit Info Mode" : "Info Mode", systemImage: isInfoMode ? "info.circle.fill" : "info.circle")
+                        }
+                    }
                 } label: {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
+                    Image(systemName: isInfoMode ? "info.circle.fill" : "line.3.horizontal.decrease.circle")
                 }
-                .help("Filter & Sort")
+                .help(isInfoMode ? "Info Mode active" : "Filter & Sort")
             }
         }
     }

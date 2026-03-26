@@ -29,6 +29,66 @@ final class LibraryViewModel {
         selectedCategory != nil || selectedTag != nil || sortByStars
     }
 
+    // MARK: - AI Insights
+
+    /// Articles saved in the last 24 hours.
+    var todaysLinks: [Link] {
+        let cutoff = Date().addingTimeInterval(-86400)
+        return allLinks.filter { ($0.savedAt ?? .distantPast) >= cutoff }
+    }
+
+    /// Numbered list of today's titles + domains for the Digest prompt (max 20, empty string if none).
+    var todaysSavedContext: String {
+        let recent = todaysLinks.prefix(20)
+        guard !recent.isEmpty else { return "" }
+        return recent.enumerated()
+            .map { i, link in "\(i + 1). \"\(link.title ?? link.url)\" (\(link.domain ?? "unknown"))" }
+            .joined(separator: "\n")
+    }
+
+    /// Compact pre-aggregated stats string for the Insights prompt.
+    var libraryStatsContext: String {
+        let total = allLinks.count
+        guard total > 0 else { return "Library is empty." }
+
+        let toRead   = allLinks.filter { $0.status == "to-read" }.count
+        let toDo     = allLinks.filter { $0.status == "to-try" }.count
+        let done     = allLinks.filter { $0.status == "done" }.count
+        let unsorted = total - toRead - toDo - done
+        let starred  = allLinks.filter { ($0.stars ?? 0) >= 4 }.count
+
+        let topTags = tagCounts.prefix(10)
+            .map { "\($0.tag) (\($0.count))" }
+            .joined(separator: ", ")
+
+        var catCounts: [String: Int] = [:]
+        for link in allLinks { if let c = link.category { catCounts[c, default: 0] += 1 } }
+        let topCats = catCounts.sorted { $0.value > $1.value }.prefix(6)
+            .map { "\($0.key): \($0.value)" }.joined(separator: ", ")
+
+        var domCounts: [String: Int] = [:]
+        for link in allLinks { if let d = link.domain { domCounts[d, default: 0] += 1 } }
+        let topDomains = domCounts.sorted { $0.value > $1.value }.prefix(5)
+            .map { "\($0.key) (\($0.value))" }.joined(separator: ", ")
+
+        let oldest = allLinks.compactMap(\.savedAt).min()
+        let ageStr: String
+        if let oldest {
+            let days = Calendar.current.dateComponents([.day], from: oldest, to: Date()).day ?? 0
+            ageStr = days < 14 ? "\(days) days" : "\(days / 7) weeks"
+        } else { ageStr = "unknown" }
+
+        return """
+        Total: \(total) articles saved over \(ageStr)
+        Status: \(toRead) to-read, \(toDo) to-try, \(done) done, \(unsorted) unsorted
+        Starred (4-5 stars): \(starred)
+        Not yet enriched: \(unenrichedLinks.count)
+        Top tags: \(topTags.isEmpty ? "none" : topTags)
+        Categories: \(topCats.isEmpty ? "none" : topCats)
+        Top domains: \(topDomains.isEmpty ? "none" : topDomains)
+        """
+    }
+
     var tagCounts: [(tag: String, count: Int)] {
         var counts: [String: Int] = [:]
         for link in allLinks {

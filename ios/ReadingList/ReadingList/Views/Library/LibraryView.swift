@@ -13,6 +13,7 @@ struct LibraryView: View {
     @State private var showProfile = false
     @State private var showSources = false
     @State private var showDigest = false
+    @State private var showInsights = false
     @State private var isCurating = false
     @State private var curateSelection: Set<String> = []
     @State private var showCurateSheet = false
@@ -97,6 +98,10 @@ struct LibraryView: View {
         }
         .sheet(isPresented: $showDigest) {
             DigestView()
+                .environment(vm)
+        }
+        .sheet(isPresented: $showInsights) {
+            LibraryInsightsView()
                 .environment(vm)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -347,6 +352,11 @@ struct LibraryView: View {
                 // Today's Digest
                 Button { showDigest = true } label: {
                     Label("Today's Reading", systemImage: "sun.max")
+                }
+
+                // Library Insights
+                Button { showInsights = true } label: {
+                    Label("Library Insights", systemImage: "chart.bar.xaxis.ascending.badge.clock")
                 }
 
                 // Sources
