@@ -111,6 +111,11 @@ struct ArticleDetailView: View {
                                     currentLink.stars = n
                                     Haptics.tap()
                                     Task { await vm.updateStars(link: link, stars: n) }
+                                    // Auto-save full text when rating 5 stars
+                                    if n == 5,
+                                       ArticleFullTextStore.shared.fetch(linkId: currentLink.id) == nil {
+                                        Task { await performDeepSave() }
+                                    }
                                 } label: {
                                     Image(systemName: i <= (currentLink.stars ?? 0) ? "star.fill" : "star")
                                         .font(.title2)
@@ -342,6 +347,12 @@ struct ArticleDetailView: View {
                     currentLink.note = editedNote.isEmpty ? nil : editedNote
                     isEditingNote = false
                     Task { await vm.updateNote(link: link, note: editedNote) }
+                    // Auto-save full text when adding a note for the first time
+                    let trimmed = editedNote.trimmingCharacters(in: .whitespaces)
+                    if !trimmed.isEmpty,
+                       ArticleFullTextStore.shared.fetch(linkId: currentLink.id) == nil {
+                        Task { await performDeepSave() }
+                    }
                 }
                 .buttonStyle(.plain)
                 .fontWeight(.semibold)
