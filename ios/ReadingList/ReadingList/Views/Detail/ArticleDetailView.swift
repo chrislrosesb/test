@@ -12,6 +12,7 @@ struct ArticleDetailView: View {
     @State private var isEditingTags = false
     @State private var editedNote: String
     @State private var isEditingNote = false
+    @FocusState private var noteEditorFocused: Bool
 
     init(link: Link) {
         self.link = link
@@ -180,6 +181,7 @@ struct ArticleDetailView: View {
                     editedTitle = currentLink.title ?? ""
                     isEditingTitle = false
                 }
+                .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 Spacer()
                 Button("Save") {
@@ -190,6 +192,7 @@ struct ArticleDetailView: View {
                     }
                     isEditingTitle = false
                 }
+                .buttonStyle(.plain)
                 .fontWeight(.semibold)
             }
             .font(.subheadline)
@@ -257,6 +260,7 @@ struct ArticleDetailView: View {
                     editedTags = currentLink.tags ?? ""
                     isEditingTags = false
                 }
+                .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 Spacer()
                 Button("Save") {
@@ -269,6 +273,7 @@ struct ArticleDetailView: View {
                     isEditingTags = false
                     Task { await vm.updateTags(link: link, tags: cleaned.isEmpty ? nil : cleaned) }
                 }
+                .buttonStyle(.plain)
                 .fontWeight(.semibold)
             }
             .font(.subheadline)
@@ -300,18 +305,23 @@ struct ArticleDetailView: View {
             TextEditor(text: $editedNote)
                 .frame(minHeight: 100)
                 .scrollContentBackground(.hidden)
+                .focused($noteEditorFocused)
             HStack {
                 Button("Cancel") {
+                    noteEditorFocused = false
                     editedNote = currentLink.note ?? ""
                     isEditingNote = false
                 }
+                .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 Spacer()
                 Button("Save") {
+                    noteEditorFocused = false
                     currentLink.note = editedNote.isEmpty ? nil : editedNote
                     isEditingNote = false
                     Task { await vm.updateNote(link: link, note: editedNote) }
                 }
+                .buttonStyle(.plain)
                 .fontWeight(.semibold)
             }
             .font(.subheadline)
