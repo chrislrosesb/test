@@ -139,7 +139,7 @@
     <div id="selection-action-bar" hidden>
       <span id="selection-count">0 links selected</span>
       <input type="text" id="selection-recipient" placeholder="For… (e.g. Sarah)" autocomplete="off" style="max-width:140px;" />
-      <input type="text" id="selection-message" placeholder="Add a message (optional)…" autocomplete="off" />
+      <input type="text" id="selection-message" placeholder="Why these? AI will personalise the message…" autocomplete="off" />
       <button class="btn btn-primary" id="selection-create-btn" style="font-size:0.8rem;padding:0.35rem 0.9rem;">Create share link</button>
       <button class="btn" id="selection-cancel-btn" style="font-size:0.8rem;padding:0.35rem 0.9rem;">Cancel</button>
     </div>
@@ -309,7 +309,9 @@
     <div class="rl-modal-inner">
       <button class="rl-modal-close" id="share-modal-close" aria-label="Close">&times;</button>
       <p class="rl-modal-title">Share this collection</p>
-      <p style="font-size:0.85rem;color:var(--color-text-muted);margin-bottom:1rem;">Copy this link and send it to your friend:</p>
+      <!-- AI-written message preview (shown when enrichment succeeded) -->
+      <div id="share-message-preview" class="share-message-preview" hidden></div>
+      <p style="font-size:0.85rem;color:var(--color-text-muted);margin-bottom:0.6rem;">Copy this link and send it to your friend:</p>
       <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem;">
         <input type="text" id="share-url-input" readonly style="flex:1;font-family:var(--font-mono);font-size:0.72rem;" />
         <button class="btn btn-primary" id="share-copy-btn" style="font-size:0.8rem;padding:0.35rem 0.9rem;">Copy</button>

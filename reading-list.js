@@ -321,38 +321,79 @@
       var message   = selectionMsgInput.value.trim() || null;
       var ids       = Array.from(state.selectedIds);
 
-      selectionCreateBtn.disabled    = true;
-      selectionCreateBtn.textContent = 'Creating\u2026';
+      // Gather article context for AI enrichment
+      var articles = ids.map(function (linkId) {
+        var link = state.allLinks.find(function (l) { return l.id === linkId; });
+        if (!link) return null;
+        return {
+          title:   link.title   || link.url,
+          domain:  link.domain  || '',
+          note:    (link.note   || '').trim()    || undefined,
+          summary: (link.summary || '').trim()   || undefined,
+        };
+      }).filter(Boolean);
 
-      db.from('collections').insert({
-        id:         id,
-        recipient:  recipient,
-        message:    message,
-        link_ids:   ids,
-        created_at: new Date().toISOString()
-      }).then(function (res) {
-        selectionCreateBtn.disabled    = false;
-        selectionCreateBtn.textContent = 'Create share link';
-        if (res.error) {
-          showToast('Failed: ' + res.error.message, 'error');
-          return;
-        }
-        var shareUrl = 'https://chrislrose.aseva.ai/c.html?id=' + id;
-        exitSelectionMode();
-        showShareModal(shareUrl);
+      selectionCreateBtn.disabled    = true;
+      selectionCreateBtn.textContent = 'Personalising\u2026';
+
+      // Ask the edge function to write an AI-enriched message, then save the collection
+      var EDGE_URL = SUPABASE_URL + '/functions/v1/enrich-collection-message';
+      fetch(EDGE_URL, {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': 'Bearer ' + SUPABASE_ANON,
+        },
+        body: JSON.stringify({ recipient: recipient, message: message, articles: articles }),
+      })
+      .then(function (r) { return r.json(); })
+      .catch(function ()  { return {}; })
+      .then(function (aiResult) {
+        var enrichedMessage = (aiResult && aiResult.enrichedMessage) || null;
+
+        db.from('collections').insert({
+          id:               id,
+          recipient:        recipient,
+          message:          message,
+          enriched_message: enrichedMessage,
+          link_ids:         ids,
+          created_at:       new Date().toISOString()
+        }).then(function (res) {
+          selectionCreateBtn.disabled    = false;
+          selectionCreateBtn.textContent = 'Create share link';
+          if (res.error) {
+            showToast('Failed: ' + res.error.message, 'error');
+            return;
+          }
+          var shareUrl = 'https://chrislrose.aseva.ai/c.html?id=' + id;
+          exitSelectionMode();
+          showShareModal(shareUrl, enrichedMessage);
+        });
       });
     });
 
     // ── Share modal ───────────────────────────────────────────────
-    function showShareModal(url) {
+    function showShareModal(url, enrichedMessage) {
       var shareModal   = document.getElementById('share-modal');
       var shareUrlInput = document.getElementById('share-url-input');
       var shareCopyBtn = document.getElementById('share-copy-btn');
       var shareDoneBtn = document.getElementById('share-done-btn');
       var shareBackdrop = document.getElementById('share-modal-backdrop');
       var shareClose   = document.getElementById('share-modal-close');
+      var sharePreview = document.getElementById('share-message-preview');
 
       shareUrlInput.value = url;
+
+      // Show AI-written message preview if we have one
+      if (sharePreview) {
+        if (enrichedMessage) {
+          sharePreview.textContent = enrichedMessage;
+          sharePreview.removeAttribute('hidden');
+        } else {
+          sharePreview.setAttribute('hidden', '');
+        }
+      }
+
       shareModal.removeAttribute('hidden');
       setTimeout(function () { shareUrlInput.select(); }, 50);
 
@@ -390,8 +431,15 @@
           '</div>' +
         '</div>';
 
-      if (collection.message) {
-        html += '<div class="collection-message">' + escHtml(collection.message) + '</div>';
+      // Prefer AI-enriched message; fall back to raw message
+      var displayMessage = collection.enriched_message || collection.message;
+      if (displayMessage) {
+        // Preserve newlines as paragraph breaks
+        var paragraphs = displayMessage.split(/\n+/).filter(function (p) { return p.trim(); });
+        var msgHtml = paragraphs.map(function (p) {
+          return '<p>' + escHtml(p) + '</p>';
+        }).join('');
+        html += '<div class="collection-message">' + msgHtml + '</div>';
       }
 
       collectionBannerEl.innerHTML = html;

@@ -3336,13 +3336,30 @@ body.selection-mode .link-card:hover {
   margin-top: 0.15rem;
 }
 .collection-message {
-  font-style: italic;
-  color: var(--color-text-muted);
+  color: var(--color-text);
   font-size: 0.95rem;
+  line-height: 1.65;
   padding: 0 0 1.5rem 0.25rem;
+  max-width: 68ch;
 }
-.collection-message::before { content: '\201C'; }
-.collection-message::after  { content: '\201D'; }
+.collection-message p {
+  margin: 0 0 0.75em 0;
+}
+.collection-message p:last-child { margin-bottom: 0; }
+
+/* Share modal — AI message preview */
+.share-message-preview {
+  background: var(--color-bg-alt);
+  border-left: 3px solid var(--color-accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--color-text);
+  white-space: pre-wrap;
+}
+.share-message-preview[hidden] { display: none; }
 body.collection-mode .filter-bar { display: none; }
 
 /* Responsive */
