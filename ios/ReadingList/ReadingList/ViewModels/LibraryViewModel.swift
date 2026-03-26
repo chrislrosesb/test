@@ -92,7 +92,7 @@ final class LibraryViewModel {
     /// Articles with non-empty notes saved within the given date range, newest first.
     func notedLinks(from start: Date, to end: Date) -> [Link] {
         allLinks.filter {
-            guard let note = $0.note, !note.isEmpty else { return false }
+            guard let note = $0.note, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
             let saved = $0.savedAt ?? .distantPast
             return saved >= start && saved <= end
         }.sorted { ($0.savedAt ?? .distantPast) > ($1.savedAt ?? .distantPast) }
@@ -105,7 +105,7 @@ final class LibraryViewModel {
         guard !links.isEmpty else { return "" }
         return links.enumerated().map { i, link in
             var parts = "\(i + 1). \"\(link.title ?? link.url)\" (\(link.domain ?? "unknown"))"
-            parts += "\n   My note: \(link.note!)"
+            parts += "\n   My note: \(link.note!.trimmingCharacters(in: .whitespacesAndNewlines))"
             if let summary = link.summary, !summary.isEmpty {
                 parts += "\n   Summary: \(summary)"
             }

@@ -8,6 +8,7 @@ private enum NotesRange: String, CaseIterable, Identifiable {
     case month     = "30 Days"
     case quarter   = "3 Months"
     case thisMonth = "This Month"
+    case custom    = "Custom"
 
     var id: String { rawValue }
 
@@ -23,6 +24,8 @@ private enum NotesRange: String, CaseIterable, Identifiable {
         case .thisMonth:
             let start = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: now)) ?? now
             return (start, now)
+        case .custom:
+            return (now, now) // placeholder — overridden by customStart/customEnd in view
         }
     }
 }
@@ -40,10 +43,18 @@ struct NotesReviewView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedRange: NotesRange = .week
+    @State private var customStart: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
+    @State private var customEnd: Date = Date()
     @State private var phase: NotesPhase = .idle
     @State private var selectedLink: Link? = nil
 
-    private var dateRange: (start: Date, end: Date) { selectedRange.dateRange }
+    private var dateRange: (start: Date, end: Date) {
+        if selectedRange == .custom {
+            return (customStart, min(customEnd, Date()))
+        }
+        return selectedRange.dateRange
+    }
+
     private var notedLinks: [Link] { vm.notedLinks(from: dateRange.start, to: dateRange.end) }
 
     var body: some View {
@@ -57,7 +68,7 @@ struct NotesReviewView: View {
                         ContentUnavailableView(
                             "No notes in this period",
                             systemImage: "note.text",
-                            description: Text("Add notes to articles and they'll appear here.")
+                            description: Text("Articles saved in this period with notes will appear here.")
                         )
                         .padding(.top, 30)
                     } else {
@@ -85,9 +96,9 @@ struct NotesReviewView: View {
                         .fontWeight(.semibold)
                 }
             }
-            .onChange(of: selectedRange) { _, _ in
-                phase = .idle
-            }
+            .onChange(of: selectedRange)  { _, _ in phase = .idle }
+            .onChange(of: customStart)    { _, _ in phase = .idle }
+            .onChange(of: customEnd)      { _, _ in phase = .idle }
         }
         .fullScreenCover(item: $selectedLink) { link in
             if let idx = notedLinks.firstIndex(where: { $0.id == link.id }) {
@@ -103,7 +114,7 @@ struct NotesReviewView: View {
             Text("Notes Review")
                 .font(.largeTitle)
                 .fontWeight(.black)
-            Text("\(notedLinks.count) article\(notedLinks.count == 1 ? "" : "s") with notes")
+            Text("\(notedLinks.count) article\(notedLinks.count == 1 ? "" : "s") with notes saved in this period")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -114,13 +125,26 @@ struct NotesReviewView: View {
     // MARK: - Picker
 
     var pickerSection: some View {
-        Picker("Range", selection: $selectedRange) {
-            ForEach(NotesRange.allCases) { range in
-                Text(range.rawValue).tag(range)
+        VStack(alignment: .leading, spacing: 12) {
+            Picker("Range", selection: $selectedRange) {
+                ForEach(NotesRange.allCases) { range in
+                    Text(range.rawValue).tag(range)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
+
+            if selectedRange == .custom {
+                VStack(spacing: 8) {
+                    DatePicker("From", selection: $customStart, displayedComponents: .date)
+                        .padding(.horizontal, 20)
+                    DatePicker("To", selection: $customEnd, in: customStart..., displayedComponents: .date)
+                        .padding(.horizontal, 20)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .pickerStyle(.segmented)
-        .padding(.horizontal, 16)
+        .animation(.easeInOut(duration: 0.2), value: selectedRange)
     }
 
     // MARK: - AI Analysis Card
@@ -222,17 +246,34 @@ struct NotesReviewView: View {
     // MARK: - Articles List
 
     var articlesSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
             Text("Articles with Notes")
                 .font(.title3)
                 .fontWeight(.bold)
                 .padding(.horizontal, 20)
 
             ForEach(notedLinks) { link in
-                ArticleCardView(link: link)
-                    .padding(.horizontal, 16)
-                    .contentShape(Rectangle())
-                    .onTapGesture { selectedLink = link }
+                VStack(alignment: .leading, spacing: 6) {
+                    ArticleCardView(link: link)
+                        .contentShape(Rectangle())
+                        .onTapGesture { selectedLink = link }
+
+                    if let note = link.note,
+                       !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        HStack(alignment: .top, spacing: 6) {
+                            Image(systemName: "quote.opening")
+                                .font(.caption2)
+                                .foregroundStyle(.indigo)
+                                .padding(.top, 1)
+                            Text(note.trimmingCharacters(in: .whitespacesAndNewlines))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(3)
+                        }
+                        .padding(.horizontal, 4)
+                    }
+                }
+                .padding(.horizontal, 16)
             }
         }
     }
