@@ -134,10 +134,12 @@ struct CurateSheetView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Message preview") {
+            Section {
                 TextEditor(text: $generatedMessage)
                     .frame(minHeight: 140)
                     .font(.body)
+            } header: {
+                Text("Message preview")
             } footer: {
                 Text("You can edit this before sending.")
                     .font(.caption)
