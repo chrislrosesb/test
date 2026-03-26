@@ -15,6 +15,7 @@ struct LibraryView: View {
     @State private var showDigest = false
     @State private var showInsights = false
     @State private var showNotesReview = false
+    @State private var showKnowledgeSynthesis = false
     @State private var isCurating = false
     @State private var curateSelection: Set<String> = []
     @State private var showCurateSheet = false
@@ -107,6 +108,10 @@ struct LibraryView: View {
         }
         .sheet(isPresented: $showNotesReview) {
             NotesReviewView()
+                .environment(vm)
+        }
+        .sheet(isPresented: $showKnowledgeSynthesis) {
+            KnowledgeSynthesisView()
                 .environment(vm)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -423,8 +428,12 @@ struct LibraryView: View {
                     }
                 }
 
-                // Enrich All
+                // AI
                 Section("AI") {
+                    Button { showKnowledgeSynthesis = true } label: {
+                        Label("Knowledge Synthesis", systemImage: "brain")
+                    }
+
                     Button {
                         if #available(iOS 26, *) {
                             Task { await vm.enrichAll() }

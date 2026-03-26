@@ -1,5 +1,12 @@
 import SwiftUI
 
+private enum DeepSavePhase {
+    case notSaved
+    case saving
+    case saved(wordCount: Int, date: Date)
+    case error(String)
+}
+
 struct ArticleDetailView: View {
     let link: Link
     @Environment(LibraryViewModel.self) private var vm
@@ -13,6 +20,7 @@ struct ArticleDetailView: View {
     @State private var editedNote: String
     @State private var isEditingNote = false
     @FocusState private var noteEditorFocused: Bool
+    @State private var deepSavePhase: DeepSavePhase = .notSaved
 
     init(link: Link) {
         self.link = link
@@ -138,9 +146,23 @@ struct ArticleDetailView: View {
                 Section("Note") {
                     noteRow
                 }
+
+                // MARK: Full Text (on-device)
+                Section {
+                    deepSaveRow
+                } header: {
+                    Text("Full Text")
+                } footer: {
+                    Text("Saves the article text on-device for richer Knowledge Synthesis. Not uploaded anywhere.")
+                }
             }
             .navigationTitle(currentLink.domain ?? "Article")
             .navigationBarTitleDisplayMode(.inline)
+            .task {
+                if let existing = ArticleFullTextStore.shared.fetch(linkId: currentLink.id) {
+                    deepSavePhase = .saved(wordCount: existing.wordCount, date: existing.fetchedAt)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Done") { dismiss() }
@@ -342,6 +364,92 @@ struct ArticleDetailView: View {
                 }
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - Deep Save Row
+
+    @ViewBuilder
+    var deepSaveRow: some View {
+        switch deepSavePhase {
+        case .notSaved:
+            Button {
+                Task { await performDeepSave() }
+            } label: {
+                Label("Save Full Text", systemImage: "doc.text")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.indigo)
+
+        case .saving:
+            HStack(spacing: 10) {
+                ProgressView().scaleEffect(0.8)
+                Text("Fetching article…")
+                    .foregroundStyle(.secondary)
+            }
+
+        case .saved(let wordCount, let date):
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Full text saved", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .fontWeight(.medium)
+                Text("\(wordCount) words · \(date.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                HStack(spacing: 20) {
+                    Button("Re-fetch") { Task { await performDeepSave() } }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                    Button("Delete Saved Text") {
+                        ArticleFullTextStore.shared.delete(linkId: currentLink.id)
+                        deepSavePhase = .notSaved
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.red)
+                    .font(.subheadline)
+                }
+            }
+
+        case .error(let msg):
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Save failed", systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                Text(msg)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("Try Again") { Task { await performDeepSave() } }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.indigo)
+                    .font(.subheadline)
+            }
+        }
+    }
+
+    func performDeepSave() async {
+        deepSavePhase = .saving
+        do {
+            let rawText = try await ArticleExtractor.extract(from: currentLink.url)
+            let wordCount = rawText.split(separator: " ").count
+
+            var digest = ""
+            if #available(iOS 26, *) {
+                #if canImport(FoundationModels)
+                digest = (try? await ArticleDigestEngine.generateDigest(
+                    for: currentLink, rawText: rawText
+                )) ?? ""
+                #endif
+            }
+
+            ArticleFullTextStore.shared.save(
+                linkId: currentLink.id,
+                rawText: rawText,
+                digest: digest,
+                wordCount: wordCount
+            )
+            deepSavePhase = .saved(wordCount: wordCount, date: Date())
+        } catch {
+            deepSavePhase = .error(error.localizedDescription)
         }
     }
 

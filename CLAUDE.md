@@ -143,7 +143,9 @@ Admin access is via a FAB button (bottom-right). Logging in activates `admin-mod
 
 ---
 
-## iOS App Project
+## iOS App Project — Core Intent
+
+**The deeper intent of the app is making the saved library actually useful, not just a graveyard of bookmarks.** The website is the public face (anyone can browse). The iOS app is the private intelligence layer — AI-powered tools to help you actually process and act on what you've saved.
 
 A native iOS reading list app (app name: **Procrastinate**). Full brief is in **`ios-app-brief.md`** (root of this repo) — read it before starting iOS work.
 
