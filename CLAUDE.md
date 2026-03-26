@@ -268,6 +268,17 @@ ios/ReadingList/ReadingList/
 - Portrait reading mode: auto-collapses to `.detailOnly` when article selected, back button to return
 - Do tab uses `TaskRowView` with subtask support (same as iPhone)
 
+### iOS App — AI Rule: Always Use Foundation Models
+
+**All AI features in the iOS app use Apple's on-device Foundation Models (`FoundationModels` framework, iOS 26+). Never use external AI APIs (Claude API, OpenAI, etc.) in the iOS app — they cost money per call, require API keys in the app, and go over the internet.**
+
+- Use `LanguageModelSession` (from `FoundationModels`) for all generative AI in the app
+- Always gate with `if #available(iOS 26, *)` and provide a graceful fallback (`ContentUnavailableView` or skipping AI) for older OS
+- Context passed to the model should always be pre-aggregated / summarised — never dump raw large data sets
+- This rule applies to ALL new AI features: if it's in the iOS app, it uses Foundation Models, full stop
+
+The website (`reading-list.js`) has no access to Foundation Models. If a website feature needs AI, that's a separate conversation — but the default answer is "do it from the iOS app instead."
+
 ### iOS App — Known Issues / Gotchas
 
 - **`Link` name conflict:** The app's `Link` model clashes with `SwiftUI.Link<Label>` in SourceKit's single-file analysis. This shows as "Reference to generic type 'Link' requires arguments" in the IDE but **does not cause actual build failures** — the module compiler resolves it correctly. Do not rename the model.
@@ -295,7 +306,7 @@ All HTML pages have Open Graph and Twitter Card meta tags for iMessage/social ri
 
 ---
 
-## Session Summary — 2026-03-25
+## Session Summary — 2026-03-25 (continued)
 
 ### Security Work (Website + Supabase)
 - **RLS enabled** on 7 previously unprotected tables: `gear_hardware`, `gear_software`, `gear_projects`, `gear_podcasts`, `gear_hobbies`, `site_content`, `collections`
@@ -317,6 +328,13 @@ All HTML pages have Open Graph and Twitter Card meta tags for iMessage/social ri
 - All three AI views follow the same phase state machine pattern (`idle → generating → ready / unavailable / error`) from `EnrichSheetView`
 - Notes Review filters by `savedAt` (article save date) as a proxy for "when you wrote the note" — acceptable because there is no `note_updated_at` field in the schema
 - Action items use `[N]` prefix convention in the AI response to identify source article for subtask auto-attachment
+
+### Curate — AI-Personalised Messages (iOS app)
+- `CurateSheetView` now has a "Personalise with AI" button (iOS 26 only)
+- Flow: enter recipient name + hint → Foundation Models writes a warm first-person message as Chris, drawing on article titles, Chris's notes, and AI summaries → user sees editable preview → "Create Share Link" saves `enriched_message` to Supabase
+- `SupabaseClient.createCollection` updated to accept `enrichedMessage` parameter
+- Website `renderCollectionBanner` already renders `enriched_message` as paragraphs when present
+- Falls back to basic link creation (no AI message) on iOS < 26
 
 ### Potential Next Steps
 - **Supabase schema:** Add `note_updated_at` column to `links` table so Notes Review can filter by when the note was actually written (currently filters by `savedAt`)

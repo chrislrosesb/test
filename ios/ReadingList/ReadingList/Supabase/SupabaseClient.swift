@@ -205,7 +205,7 @@ final class SupabaseClient {
 
     // MARK: - Collections
 
-    func createCollection(recipient: String?, message: String?, linkIds: [String]) async throws -> String {
+    func createCollection(recipient: String?, message: String?, enrichedMessage: String?, linkIds: [String]) async throws -> String {
         let collectionId = String(Int(Date().timeIntervalSince1970 * 1000), radix: 36)
 
         let url = URL(string: "\(Config.baseURL)/rest/v1/collections")!
@@ -224,6 +224,7 @@ final class SupabaseClient {
         ]
         if let r = recipient, !r.isEmpty { body["recipient"] = r }
         if let m = message, !m.isEmpty { body["message"] = m }
+        if let em = enrichedMessage, !em.isEmpty { body["enriched_message"] = em }
 
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
 

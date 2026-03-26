@@ -321,54 +321,25 @@
       var message   = selectionMsgInput.value.trim() || null;
       var ids       = Array.from(state.selectedIds);
 
-      // Gather article context for AI enrichment
-      var articles = ids.map(function (linkId) {
-        var link = state.allLinks.find(function (l) { return l.id === linkId; });
-        if (!link) return null;
-        return {
-          title:   link.title   || link.url,
-          domain:  link.domain  || '',
-          note:    (link.note   || '').trim()    || undefined,
-          summary: (link.summary || '').trim()   || undefined,
-        };
-      }).filter(Boolean);
-
       selectionCreateBtn.disabled    = true;
-      selectionCreateBtn.textContent = 'Personalising\u2026';
+      selectionCreateBtn.textContent = 'Creating\u2026';
 
-      // Ask the edge function to write an AI-enriched message, then save the collection
-      var EDGE_URL = SUPABASE_URL + '/functions/v1/enrich-collection-message';
-      fetch(EDGE_URL, {
-        method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': 'Bearer ' + SUPABASE_ANON,
-        },
-        body: JSON.stringify({ recipient: recipient, message: message, articles: articles }),
-      })
-      .then(function (r) { return r.json(); })
-      .catch(function ()  { return {}; })
-      .then(function (aiResult) {
-        var enrichedMessage = (aiResult && aiResult.enrichedMessage) || null;
-
-        db.from('collections').insert({
-          id:               id,
-          recipient:        recipient,
-          message:          message,
-          enriched_message: enrichedMessage,
-          link_ids:         ids,
-          created_at:       new Date().toISOString()
-        }).then(function (res) {
-          selectionCreateBtn.disabled    = false;
-          selectionCreateBtn.textContent = 'Create share link';
-          if (res.error) {
-            showToast('Failed: ' + res.error.message, 'error');
-            return;
-          }
-          var shareUrl = 'https://chrislrose.aseva.ai/c.html?id=' + id;
-          exitSelectionMode();
-          showShareModal(shareUrl, enrichedMessage);
-        });
+      db.from('collections').insert({
+        id:         id,
+        recipient:  recipient,
+        message:    message,
+        link_ids:   ids,
+        created_at: new Date().toISOString()
+      }).then(function (res) {
+        selectionCreateBtn.disabled    = false;
+        selectionCreateBtn.textContent = 'Create share link';
+        if (res.error) {
+          showToast('Failed: ' + res.error.message, 'error');
+          return;
+        }
+        var shareUrl = 'https://chrislrose.aseva.ai/c.html?id=' + id;
+        exitSelectionMode();
+        showShareModal(shareUrl, null);
       });
     });
 
