@@ -288,6 +288,9 @@ struct IPadArticleList: View {
     @Environment(LibraryViewModel.self) private var vm
     @Environment(AuthViewModel.self) private var authVM
     @State private var infoLink: Link? = nil
+    @State private var isCurating = false
+    @State private var curateSelection: Set<String> = []
+    @State private var showCurateSheet = false
 
     var displayedLinks: [Link] {
         var result = vm.allLinks
@@ -331,6 +334,23 @@ struct IPadArticleList: View {
                             Label("Delete", systemImage: "trash")
                         }
                     }
+                } else if isCurating {
+                    HStack {
+                        Image(systemName: curateSelection.contains(link.id) ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(curateSelection.contains(link.id) ? Color.accentColor : .secondary)
+                            .font(.title3)
+                        iPadRow(link: link)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if curateSelection.contains(link.id) {
+                            curateSelection.remove(link.id)
+                        } else {
+                            curateSelection.insert(link.id)
+                        }
+                    }
+                    .tag(link)
+                    .listRowSeparator(.visible)
                 } else {
                 iPadRow(link: link)
                     .tag(link)
@@ -399,6 +419,40 @@ struct IPadArticleList: View {
         .listStyle(.plain)
         .navigationTitle(navTitle)
         .refreshable { await vm.refresh() }
+        .overlay(alignment: .bottom) {
+            if isCurating {
+                HStack {
+                    Button("Cancel") {
+                        withAnimation { isCurating = false; curateSelection.removeAll() }
+                    }
+                    .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(curateSelection.count) selected")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Spacer()
+                    Button("Create Link") {
+                        showCurateSheet = true
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(curateSelection.isEmpty)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(.regularMaterial)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(duration: 0.3), value: isCurating)
+        .sheet(isPresented: $showCurateSheet) {
+            CurateSheetView(
+                selectedLinks: displayedLinks.filter { curateSelection.contains($0.id) }
+            ) {
+                isCurating = false
+                curateSelection.removeAll()
+            }
+            .environment(vm)
+        }
         .sheet(item: $infoLink) { link in
             ArticleDetailView(link: link)
                 .environment(vm)
@@ -439,6 +493,11 @@ struct IPadArticleList: View {
                             isInfoMode.toggle()
                         } label: {
                             Label(isInfoMode ? "Exit Info Mode" : "Info Mode", systemImage: isInfoMode ? "info.circle.fill" : "info.circle")
+                        }
+                        Button {
+                            withAnimation { isCurating = true; curateSelection.removeAll() }
+                        } label: {
+                            Label("Curate Collection", systemImage: "rectangle.stack.badge.plus")
                         }
                     }
                 } label: {
