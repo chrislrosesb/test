@@ -410,7 +410,8 @@ final class LibraryViewModel {
         var scored: [(link: Link, score: Int)] = []
 
         for link in allLinks {
-            let haystack = [link.title, link.description, link.note, link.summary, link.domain, link.category, link.tags]
+            let fullTextDigest = ArticleFullTextStore.shared.fetch(linkId: link.id)?.digest
+            let haystack = [link.title, link.description, link.note, link.summary, link.domain, link.category, link.tags, fullTextDigest]
                 .compactMap { $0 }.joined(separator: " ").lowercased()
 
             // Count how many keywords match
