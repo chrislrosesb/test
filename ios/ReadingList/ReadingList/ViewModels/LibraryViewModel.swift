@@ -89,6 +89,30 @@ final class LibraryViewModel {
         """
     }
 
+    /// Articles with non-empty notes saved within the given date range, newest first.
+    func notedLinks(from start: Date, to end: Date) -> [Link] {
+        allLinks.filter {
+            guard let note = $0.note, !note.isEmpty else { return false }
+            let saved = $0.savedAt ?? .distantPast
+            return saved >= start && saved <= end
+        }.sorted { ($0.savedAt ?? .distantPast) > ($1.savedAt ?? .distantPast) }
+    }
+
+    /// Prompt context for Notes Review: title, domain, note, and optional AI summary.
+    /// Capped at 20 articles to stay within Foundation Models context.
+    func notesContext(from start: Date, to end: Date) -> String {
+        let links = notedLinks(from: start, to: end).prefix(20)
+        guard !links.isEmpty else { return "" }
+        return links.enumerated().map { i, link in
+            var parts = "\(i + 1). \"\(link.title ?? link.url)\" (\(link.domain ?? "unknown"))"
+            parts += "\n   My note: \(link.note!)"
+            if let summary = link.summary, !summary.isEmpty {
+                parts += "\n   Summary: \(summary)"
+            }
+            return parts
+        }.joined(separator: "\n\n")
+    }
+
     var tagCounts: [(tag: String, count: Int)] {
         var counts: [String: Int] = [:]
         for link in allLinks {
