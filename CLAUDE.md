@@ -180,18 +180,51 @@ ios/ReadingList/ReadingList/
 │   │   ├── ArticleDetailView.swift # Editable title, category, tags inline
 │   │   └── EnrichSheetView.swift   # AI enrichment sheet + EnrichEngine
 │   ├── Library/
-│   │   ├── LibraryView.swift       # Main library, tag cloud button, filters
+│   │   ├── LibraryView.swift       # Main library, tag cloud button, filters, toolbar menu
 │   │   ├── TagCloudView.swift      # Full-screen weighted tag cloud, tap to filter
 │   │   ├── TaskRowView.swift       # Do-tab rows with inline subtask expand/collapse
 │   │   └── SubtaskEditorView.swift # Half-sheet subtask manager
+│   ├── Digest/
+│   │   └── DigestView.swift        # Today's Reading — last-24h articles + AI narrative
+│   ├── Insights/
+│   │   └── LibraryInsightsView.swift # Library stats grid + AI narrative + action items
+│   ├── Notes/
+│   │   └── NotesReviewView.swift   # Notes Review — date picker, AI recap, action items → subtasks
 │   ├── iPad/
-│   │   └── IPadNavigationView.swift # iPad/Mac: NavigationSplitView, portrait reading mode, Do tab uses TaskRowView
+│   │   └── IPadNavigationView.swift # iPad/Mac: NavigationSplitView, sidebar includes Insights + Notes Review
 │   └── ...
 └── Supabase/
     └── SupabaseClient.swift
 ```
 
 ### iOS App — Features Implemented
+
+**Daily Digest (`DigestView`)**
+- Accessible from toolbar Menu → "Today's Reading"
+- Shows only articles saved in the **last 24 hours**
+- "Generate Today's Summary" button → Foundation Models produces 3–4 sentence narrative: themes, what to read first, quick observation about the mix
+- Article cards below the AI summary; tap to open full reader
+- Graceful `ContentUnavailableView` fallback if no articles today or iOS < 26
+
+**Library Insights (`LibraryInsightsView`)**
+- Accessible from toolbar Menu → "Library Insights" (iPhone) and sidebar under Discover (iPad/Mac)
+- Always-visible stats grid: status counts (to-read / to-do / done / unsorted), top 3 categories, top 5 tag pills — no AI required
+- "Generate Insights" button → Foundation Models produces 2–3 paragraph narrative on reading habits + exactly 3 action items
+- `libraryStatsContext` computed property on `LibraryViewModel` builds pre-aggregated stats string (top-10 tags, top-6 categories, top-5 domains, counts) — never dumps raw links to the model
+- AI section shows generated-at timestamp and refresh button
+
+**Notes Review (`NotesReviewView`)**
+- Accessible from toolbar Menu → "Notes Review" (iPhone) and sidebar under Discover (iPad/Mac)
+- **Purpose:** recall what you were thinking when you wrote notes on articles during a time period
+- **Quick date picker:** 7 Days / 30 Days / 3 Months / This Month — plus a **Custom** option that reveals animated From/To `DatePicker` fields with no lower bound (can go back years, e.g. Q1 2025)
+- Filters by `savedAt` date (not note-written date — no timestamp for that); only articles with non-empty, non-whitespace notes appear
+- "Analyse Notes" → Foundation Models reads each note + article title + AI summary for context, returns:
+  - **Recap** (2–3 paragraphs, journal-entry tone, references actual notes)
+  - **Action Items** (up to 5, prefixed with `[N]` to identify source article)
+- **Add to Do** button per action item: auto-attaches text as subtask on the source article, moves article to Do tab if not already there, button hides after use
+- Article list uses `NoteReviewCardView` — note-first design: compact title/domain header + full note text as body (no line limit, scrollable)
+- Switching date range or regenerating resets all added-item state
+- Key bug fix: whitespace-only notes (e.g. `" "`) are trimmed before emptiness check so they never appear
 
 **Enrich with AI (`EnrichSheetView` / `EnrichEngine`)**
 - Uses `LanguageModelSession` (Foundation Models, iOS 26 only)
@@ -259,6 +292,38 @@ All HTML pages have Open Graph and Twitter Card meta tags for iMessage/social ri
 - Flow: Receive Any from Share Sheet → Get URLs from Input → construct `reading-list.html?add=URL` → Open
 - Works on iOS (all apps), Mac Safari. Mac RSS apps (e.g., ReadKit) may not pass URLs through share sheet properly — clipboard workaround needed.
 - **Must be logged into admin mode** on `chrislrose.aseva.ai` in the device's browser for silent quickSave. First use on a new device requires one-time admin login.
+
+---
+
+## Session Summary — 2026-03-25
+
+### Security Work (Website + Supabase)
+- **RLS enabled** on 7 previously unprotected tables: `gear_hardware`, `gear_software`, `gear_projects`, `gear_podcasts`, `gear_hobbies`, `site_content`, `collections`
+- Policies applied: public SELECT (anon key), authenticated INSERT/UPDATE/DELETE only
+- Supabase anon key in client-side JS is **by design** — the real protection is RLS. No service role key was ever exposed.
+
+### iOS Features Built This Session
+
+| Feature | Entry Point | Status |
+|---------|------------|--------|
+| Daily Digest | Toolbar → "Today's Reading" | ✅ Done |
+| Library Insights | Toolbar → "Library Insights" + iPad sidebar | ✅ Done |
+| Notes Review | Toolbar → "Notes Review" + iPad sidebar | ✅ Done |
+| Notes Review — custom date range | Part of Notes Review | ✅ Done |
+| Notes Review — action items → subtasks | Part of Notes Review | ✅ Done |
+
+### Key Architectural Decisions Made
+- AI context is always **pre-aggregated stats or capped lists** — never raw link dumps to Foundation Models
+- All three AI views follow the same phase state machine pattern (`idle → generating → ready / unavailable / error`) from `EnrichSheetView`
+- Notes Review filters by `savedAt` (article save date) as a proxy for "when you wrote the note" — acceptable because there is no `note_updated_at` field in the schema
+- Action items use `[N]` prefix convention in the AI response to identify source article for subtask auto-attachment
+
+### Potential Next Steps
+- **Supabase schema:** Add `note_updated_at` column to `links` table so Notes Review can filter by when the note was actually written (currently filters by `savedAt`)
+- **Notes Review:** Consider a "week-at-a-glance" calendar view showing which days had saved articles with notes
+- **Library Insights:** Could add trend comparison (this month vs last month)
+- **Daily Digest:** Consider a push notification or widget that surfaces the digest summary
+- **Distribution:** iOS app still requires manual Xcode build + copy. Paid Apple Developer account ($99/yr) would enable direct distribution archive
 
 ---
 
