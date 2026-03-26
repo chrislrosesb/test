@@ -37,13 +37,22 @@ final class LibraryViewModel {
         return allLinks.filter { ($0.savedAt ?? .distantPast) >= cutoff }
     }
 
-    /// Numbered list of today's titles + domains for the Digest prompt (max 20, empty string if none).
+    /// Numbered list of today's saves for the Digest prompt (max 20, empty string if none).
+    /// Includes digest when available, otherwise summary or note, for richer AI analysis.
     var todaysSavedContext: String {
         let recent = todaysLinks.prefix(20)
         guard !recent.isEmpty else { return "" }
-        return recent.enumerated()
-            .map { i, link in "\(i + 1). \"\(link.title ?? link.url)\" (\(link.domain ?? "unknown"))" }
-            .joined(separator: "\n")
+        return recent.enumerated().map { i, link in
+            var parts = "\(i + 1). \"\(link.title ?? link.url)\" (\(link.domain ?? "unknown"))"
+            if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty {
+                parts += "\n   \(ft.digest)"
+            } else if let summary = link.summary, !summary.isEmpty {
+                parts += "\n   Summary: \(summary)"
+            } else if let note = link.note, !note.isEmpty {
+                parts += "\n   My note: \(note)"
+            }
+            return parts
+        }.joined(separator: "\n\n")
     }
 
     /// Compact pre-aggregated stats string for the Insights prompt.
@@ -98,7 +107,7 @@ final class LibraryViewModel {
         }.sorted { ($0.savedAt ?? .distantPast) > ($1.savedAt ?? .distantPast) }
     }
 
-    /// Prompt context for Notes Review: title, domain, note, and optional AI summary.
+    /// Prompt context for Notes Review: title, domain, note, and digest (or summary as fallback).
     /// Capped at 20 articles to stay within Foundation Models context.
     func notesContext(from start: Date, to end: Date) -> String {
         let links = notedLinks(from: start, to: end).prefix(20)
@@ -106,7 +115,9 @@ final class LibraryViewModel {
         return links.enumerated().map { i, link in
             var parts = "\(i + 1). \"\(link.title ?? link.url)\" (\(link.domain ?? "unknown"))"
             parts += "\n   My note: \(link.note!.trimmingCharacters(in: .whitespacesAndNewlines))"
-            if let summary = link.summary, !summary.isEmpty {
+            if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty {
+                parts += "\n   Article digest: \(ft.digest)"
+            } else if let summary = link.summary, !summary.isEmpty {
                 parts += "\n   Summary: \(summary)"
             }
             return parts

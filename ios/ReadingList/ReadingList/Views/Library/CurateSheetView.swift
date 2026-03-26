@@ -244,7 +244,10 @@ struct CurateSheetView: View {
             if let note = link.note, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 parts.append("  Your note: \(note.trimmingCharacters(in: .whitespacesAndNewlines))")
             }
-            if let summary = link.summary, !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Use stored digest if available for richer context, otherwise fall back to summary
+            if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty {
+                parts.append("  Article digest: \(ft.digest)")
+            } else if let summary = link.summary, !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 parts.append("  Summary: \(summary.trimmingCharacters(in: .whitespacesAndNewlines))")
             }
             return parts.joined(separator: "\n")
