@@ -139,9 +139,15 @@ final class SupabaseClient {
         let (data, response) = try await URLSession.shared.data(for: req)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
 
-        // If 401 and we haven't retried yet, refresh token and retry
+        // If 401 and we haven't retried yet, try refreshing. If refresh fails,
+        // silently clear auth and retry as guest — public content is still accessible via RLS.
         if status == 401 && !retried {
-            try await refreshSession()
+            do {
+                try await refreshSession()
+            } catch {
+                accessToken = nil
+                UserDefaults.standard.removeObject(forKey: "supabase_refresh_token")
+            }
             return try await get(url: url, type: type, retried: true)
         }
 
