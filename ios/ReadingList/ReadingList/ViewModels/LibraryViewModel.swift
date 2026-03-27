@@ -557,10 +557,13 @@ final class LibraryViewModel {
 
     private func searchDuckDuckGo(query: String) async throws -> [DiscoverResult] {
         let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
-        let urlString = "https://api.duckduckgo.com/?q=\(encoded)&format=json&no_redirect=1&t=procrastinate"
+        let urlString = "https://api.duckduckgo.com/?q=\(encoded)&format=json&no_redirect=1&t=procrastinate&kl=us-en"
         guard let url = URL(string: urlString) else { throw NSError(domain: "Invalid URL", code: -1) }
 
-        let (data, _) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+
+        let (data, _) = try await URLSession.shared.data(for: request)
         let decoder = JSONDecoder()
 
         do {
@@ -568,67 +571,34 @@ final class LibraryViewModel {
 
             var results: [DiscoverResult] = []
 
-            // Try to use related topics
-            for item in response.relatedTopics.prefix(15) {
+            // Parse all related topics, being lenient with missing data
+            for item in response.relatedTopics.prefix(20) {
                 guard let result = parseTopicResult(item) else { continue }
                 results.append(result)
+                if results.count >= 12 { break }
             }
 
-            if !results.isEmpty {
-                return results
-            }
-
-            // If no results from topics, return sample results for demo
-            return createDemoResults(for: query)
+            return results.isEmpty ? [] : results
         } catch {
-            // If parsing fails, return demo results
-            return createDemoResults(for: query)
+            throw NSError(domain: "DuckDuckGo API error", code: -1, userInfo: [NSLocalizedDescriptionKey: error.localizedDescription])
         }
-    }
-
-    private func createDemoResults(for query: String) -> [DiscoverResult] {
-        // Return demo results so the feature is functional during testing
-        return [
-            DiscoverResult(
-                title: "Understanding \(query)",
-                snippet: "A comprehensive guide to \(query) concepts and best practices.",
-                url: "https://example.com/article-1",
-                source: "medium.com",
-                image: nil
-            ),
-            DiscoverResult(
-                title: "\(query) in Practice",
-                snippet: "Real-world applications and examples of \(query) technology.",
-                url: "https://example.com/article-2",
-                source: "dev.to",
-                image: nil
-            ),
-            DiscoverResult(
-                title: "Advanced \(query) Techniques",
-                snippet: "Deep dive into advanced topics related to \(query).",
-                url: "https://example.com/article-3",
-                source: "github.com",
-                image: nil
-            )
-        ]
     }
 
     private func parseTopicResult(_ topic: RelatedTopic) -> DiscoverResult? {
         let text = topic.text ?? ""
         let url = topic.firstURL ?? ""
 
-        // Be lenient with parsing - accept if we have at least text
-        guard !text.isEmpty else { return nil }
+        // Require both text and URL for a valid result
+        guard !text.isEmpty, !url.isEmpty else { return nil }
 
         let title = extractTitle(from: text)
         let snippet = extractSnippet(from: text)
-        let source = url.isEmpty ? "web" : extractDomain(from: url)
 
         return DiscoverResult(
             title: title,
             snippet: snippet,
-            url: url.isEmpty ? "https://duckduckgo.com/?q=\(title)" : url,
-            source: source,
+            url: url,
+            source: extractDomain(from: url),
             image: topic.icon?.URL
         )
     }
