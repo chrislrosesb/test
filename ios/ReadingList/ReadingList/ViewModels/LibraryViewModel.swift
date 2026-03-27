@@ -537,28 +537,58 @@ final class LibraryViewModel {
     }
 
     private func searchInternet(for themes: [String]) async {
-        let query = themes.joined(separator: " ")
-        do {
-            let results = try await searchHackerNews(query: query)
-            if results.isEmpty {
-                discoverPhase = .error("No articles found for your themes. Try generating a new Notes Review recap.")
-            } else {
-                discoverPhase = .ready(results)
+        // Search top 4 themes individually and merge, so one bad query doesn't fail everything
+        let topThemes = Array(themes.prefix(4))
+        var seen = Set<String>()
+        var allResults: [(result: DiscoverResult, points: Int)] = []
+
+        for theme in topThemes {
+            guard !theme.isEmpty else { continue }
+            do {
+                let (results, points) = try await searchHackerNewsWithPoints(query: theme)
+                for (r, p) in zip(results, points) {
+                    if seen.insert(r.url).inserted {
+                        allResults.append((result: r, points: p))
+                    }
+                }
+            } catch {
+                // If one theme fails, continue with the others
+                continue
             }
-        } catch {
-            discoverPhase = .error("Search failed: \(error.localizedDescription)")
+        }
+
+        // Sort by points descending, return top 25
+        let sorted = allResults.sorted { $0.points > $1.points }.map { $0.result }
+        let finalResults = Array(sorted.prefix(25))
+
+        if finalResults.isEmpty {
+            // Retry once with a combined query as fallback
+            let combined = topThemes.prefix(2).joined(separator: " ")
+            do {
+                let (results, _) = try await searchHackerNewsWithPoints(query: combined)
+                if results.isEmpty {
+                    discoverPhase = .error("No articles found for your themes. Try generating a new Notes Review recap.")
+                } else {
+                    discoverPhase = .ready(results)
+                }
+            } catch {
+                discoverPhase = .error("Search failed: \(error.localizedDescription)")
+            }
+        } else {
+            discoverPhase = .ready(finalResults)
         }
     }
 
-    private func searchHackerNews(query: String) async throws -> [DiscoverResult] {
-        // Use top 4 themes max to keep the query focused
-        let shortQuery = query.split(separator: " ").prefix(6).joined(separator: " ")
+    private func searchHackerNewsWithPoints(query: String) async throws -> ([DiscoverResult], [Int]) {
+        // Keep queries short — Algolia works best with 2-4 keyword terms
+        let shortQuery = query.split(separator: " ").prefix(4).joined(separator: " ")
         let encoded = shortQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? shortQuery
-        let urlString = "https://hn.algolia.com/api/v1/search?query=\(encoded)&tags=story&hitsPerPage=20"
+        let urlString = "https://hn.algolia.com/api/v1/search?query=\(encoded)&tags=story&hitsPerPage=15&minPoints=10"
         guard let url = URL(string: urlString) else { throw NSError(domain: "Invalid URL", code: -1) }
 
         var request = URLRequest(url: url)
-        request.timeoutInterval = 15
+        request.timeoutInterval = 12
+        request.cachePolicy = .reloadIgnoringLocalCacheData
 
         let (data, response) = try await URLSession.shared.data(for: request)
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
@@ -567,17 +597,23 @@ final class LibraryViewModel {
 
         let decoded = try JSONDecoder().decode(HNSearchResponse.self, from: data)
 
-        return decoded.hits.compactMap { hit in
-            guard let url = hit.url, !url.isEmpty,
-                  let title = hit.title, !title.isEmpty else { return nil }
-            let domain = URLComponents(string: url)?.host?.replacingOccurrences(of: "www.", with: "") ?? "web"
+        var results: [DiscoverResult] = []
+        var points: [Int] = []
+
+        for hit in decoded.hits {
+            guard let hitUrl = hit.url, !hitUrl.isEmpty,
+                  let title = hit.title, !title.isEmpty else { continue }
+            let domain = URLComponents(string: hitUrl)?.host?.replacingOccurrences(of: "www.", with: "") ?? "web"
             let snippet = hit.storyText.map {
                 $0.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                     .prefix(150)
             }.map(String.init) ?? ""
-            return DiscoverResult(title: title, snippet: snippet, url: url, source: domain, image: nil)
+            results.append(DiscoverResult(title: title, snippet: snippet, url: hitUrl, source: domain, image: nil))
+            points.append(hit.points ?? 0)
         }
+
+        return (results, points)
     }
 
     private func extractDomain(from url: String) -> String {
