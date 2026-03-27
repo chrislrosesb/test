@@ -67,6 +67,7 @@ final class LibraryViewModel {
         case idle
         case extracting
         case searching
+        case curating
         case ready([DiscoverResult])
         case error(String)
     }
@@ -504,6 +505,7 @@ final class LibraryViewModel {
 
     func discoverSimilar(fromRecap recap: String) async {
         guard !recap.isEmpty else { return }
+        discoverRecap = recap
         discoverPhase = .extracting
 
         // Extract themes from Notes Review recap using Foundation Models
@@ -552,31 +554,83 @@ final class LibraryViewModel {
                     }
                 }
             } catch {
-                // If one theme fails, continue with the others
                 continue
             }
         }
 
-        // Sort by points descending, return top 25
+        // Sort by points descending, take top 25 candidates
         let sorted = allResults.sorted { $0.points > $1.points }.map { $0.result }
-        let finalResults = Array(sorted.prefix(25))
+        var candidates = Array(sorted.prefix(25))
 
-        if finalResults.isEmpty {
+        if candidates.isEmpty {
             // Retry once with a combined query as fallback
             let combined = topThemes.prefix(2).joined(separator: " ")
             do {
                 let (results, _) = try await searchHackerNewsWithPoints(query: combined)
-                if results.isEmpty {
-                    discoverPhase = .error("No articles found for your themes. Try generating a new Notes Review recap.")
-                } else {
-                    discoverPhase = .ready(results)
-                }
+                candidates = results
             } catch {
                 discoverPhase = .error("Search failed: \(error.localizedDescription)")
+                return
             }
-        } else {
-            discoverPhase = .ready(finalResults)
         }
+
+        if candidates.isEmpty {
+            discoverPhase = .error("No articles found for your themes. Try generating a new Notes Review recap.")
+            return
+        }
+
+        // AI post-filter: let Foundation Models pick the most relevant stories
+        discoverPhase = .curating
+        if #available(iOS 26, *) {
+            let curated = await aiCurateResults(candidates, recap: discoverRecap)
+            discoverPhase = .ready(curated.isEmpty ? candidates : curated)
+        } else {
+            discoverPhase = .ready(candidates)
+        }
+    }
+
+    // Stores the original recap so the post-filter can reference it
+    var discoverRecap: String = ""
+
+    @available(iOS 26, *)
+    private func aiCurateResults(_ candidates: [DiscoverResult], recap: String) async -> [DiscoverResult] {
+        guard !recap.isEmpty, !candidates.isEmpty else { return candidates }
+
+        // Build a numbered list of candidates for the model
+        let numbered = candidates.enumerated().map { i, r in
+            "[\(i + 1)] \(r.title) (\(r.source))"
+        }.joined(separator: "\n")
+
+        let prompt = """
+        Here is a summary of what I have been reading and thinking about recently:
+
+        \(recap)
+
+        Here are \(candidates.count) candidate articles found by keyword search:
+
+        \(numbered)
+
+        Pick the 8-10 articles that are most genuinely relevant to my reading interests above.
+        Exclude anything that feels tangential or unrelated.
+        Reply with only the numbers of the articles you selected, comma-separated. Nothing else.
+        Example: 1, 3, 5, 7, 9
+        """
+
+        #if canImport(FoundationModels)
+        do {
+            let session = LanguageModelSession()
+            let response = try await session.respond(to: prompt)
+            let picked = response.content
+                .components(separatedBy: CharacterSet(charactersIn: ",\n"))
+                .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+                .filter { $0 >= 1 && $0 <= candidates.count }
+            return picked.map { candidates[$0 - 1] }
+        } catch {
+            return candidates
+        }
+        #else
+        return candidates
+        #endif
     }
 
     private func searchHackerNewsWithPoints(query: String) async throws -> ([DiscoverResult], [Int]) {
@@ -653,6 +707,7 @@ final class LibraryViewModel {
     func clearDiscoverSimilar() {
         discoverPhase = .idle
         discoverThemes = []
+        discoverRecap = ""
     }
 
     // MARK: - Delete

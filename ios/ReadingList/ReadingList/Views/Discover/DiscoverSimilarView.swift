@@ -27,7 +27,7 @@ struct DiscoverSimilarView: View {
     var sidebar: some View {
         Group {
             switch vm.discoverPhase {
-            case .idle, .extracting, .searching:
+            case .idle, .extracting, .searching, .curating:
                 loadingList
             case .ready(let results):
                 storyList(results)
@@ -86,6 +86,7 @@ struct DiscoverSimilarView: View {
         switch vm.discoverPhase {
         case .extracting: return "Extracting themes from your notes…"
         case .searching:  return "Searching for similar articles…"
+        case .curating:   return "Curating results for you…"
         default:          return "Starting search…"
         }
     }
