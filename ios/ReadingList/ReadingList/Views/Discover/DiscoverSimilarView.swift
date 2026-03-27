@@ -4,29 +4,16 @@ struct DiscoverSimilarView: View {
     @Environment(LibraryViewModel.self) private var vm
     let recap: String
     @Environment(\.dismiss) var dismiss
+    @State private var selectedResult: DiscoverResult? = nil
+    @State private var addedIds: Set<String> = []
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                switch vm.discoverPhase {
-                case .idle:
-                    idleView
-                case .extracting, .searching:
-                    searchingView
-                case .ready(let results):
-                    resultsView(results)
-                case .error(let error):
-                    errorStateView(error)
-                }
-            }
-            .navigationTitle("Similar Articles")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
+        NavigationSplitView {
+            sidebar
+        } detail: {
+            detailPane
         }
+        .navigationSplitViewStyle(.balanced)
         .onAppear {
             Task { await vm.discoverSimilar(fromRecap: recap) }
         }
@@ -35,158 +22,126 @@ struct DiscoverSimilarView: View {
         }
     }
 
-    var idleView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "magnifyingglass.circle")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("Ready to search")
-                .font(.headline)
-            Text("Tap 'Start Search' to find similar articles on the internet")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Spacer()
-            Button {
-                Task { await vm.discoverSimilar(fromRecap: recap) }
-            } label: {
-                Label("Start Search", systemImage: "magnifyingglass")
-                    .frame(maxWidth: .infinity)
+    // MARK: - Sidebar (story list)
+
+    var sidebar: some View {
+        Group {
+            switch vm.discoverPhase {
+            case .idle, .extracting, .searching:
+                loadingList
+            case .ready(let results):
+                storyList(results)
+            case .error(let error):
+                errorView(error)
             }
-            .buttonStyle(.borderedProminent)
         }
-        .padding()
+        .navigationTitle("Discover Similar")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Done") { dismiss() }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                if case .searching = vm.discoverPhase {
+                    ProgressView().scaleEffect(0.8)
+                } else if case .ready = vm.discoverPhase {
+                    Button {
+                        Task { await vm.discoverSimilar(fromRecap: recap) }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+            }
+        }
     }
 
-    var searchingView: some View {
+    var loadingList: some View {
         VStack(spacing: 16) {
+            Spacer()
             ProgressView()
                 .scaleEffect(1.2)
-            Text("Searching the internet…")
+            Text(loadingMessage)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             if !vm.discoverThemes.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Themes")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
-                    Wrap(themes: vm.discoverThemes, spacing: 8)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(vm.discoverThemes, id: \.self) { theme in
+                            Text(theme)
+                                .font(.caption)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(.secondary.opacity(0.15))
+                                .cornerRadius(6)
+                        }
+                    }
+                    .padding(.horizontal)
                 }
-                .padding()
-                .background(.regularMaterial)
-                .cornerRadius(8)
             }
             Spacer()
         }
-        .padding()
     }
 
-    func resultsView(_ results: [DiscoverResult]) -> some View {
-        if results.isEmpty {
-            return AnyView(
-                VStack(spacing: 16) {
-                    Image(systemName: "magnifyingglass.circle")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.secondary)
-                    Text("No results found")
-                        .font(.headline)
-                    Text("Try a different search or check your internet connection")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                    Spacer()
-                }
-                .padding()
-            )
+    var loadingMessage: String {
+        switch vm.discoverPhase {
+        case .extracting: return "Extracting themes from your notes…"
+        case .searching:  return "Searching for similar articles…"
+        default:          return "Starting search…"
         }
-
-        return AnyView(
-            List {
-                ForEach(results) { result in
-                    resultRow(result)
-                }
-            }
-            .listStyle(.plain)
-        )
     }
 
-    func resultRow(_ result: DiscoverResult) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 12) {
-                // Image/Icon
-                if let imageUrl = result.image, let url = URL(string: imageUrl) {
-                    CachedAsyncImage(url: url) { img in
-                        img.resizable().aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        fallbackIcon(result)
-                    }
-                    .frame(width: 44, height: 44)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                } else {
-                    fallbackIcon(result)
-                        .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                }
+    func storyList(_ results: [DiscoverResult]) -> some View {
+        List(results, selection: $selectedResult) { result in
+            storyRow(result)
+                .tag(result)
+                .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+        }
+        .listStyle(.plain)
+    }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(result.title)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .lineLimit(2)
+    func storyRow(_ result: DiscoverResult) -> some View {
+        HStack(spacing: 10) {
+            // Domain initial icon
+            ZStack {
+                LinearGradient(colors: domainGradient(for: result.source), startPoint: .topLeading, endPoint: .bottomTrailing)
+                Text(String((result.source.first ?? "W")).uppercased())
+                    .font(.system(size: 18, weight: .black, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+            .frame(width: 44, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
+            VStack(alignment: .leading, spacing: 3) {
+                Text(result.title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .lineLimit(2)
+
+                HStack(spacing: 4) {
                     Text(result.source)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if addedIds.contains(result.id) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
                 }
 
-                Spacer()
-            }
-
-            Text(result.snippet)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-
-            HStack(spacing: 8) {
-                Button {
-                    guard let url = URL(string: result.url) else { return }
-                    UIApplication.shared.open(url)
-                } label: {
-                    Label("Read", systemImage: "safari")
+                if !result.snippet.isEmpty {
+                    Text(result.snippet)
                         .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
-                .buttonStyle(.bordered)
-
-                Button {
-                    Task { await vm.addDiscoveredArticle(result) }
-                    dismiss()
-                } label: {
-                    Label("Add to Library", systemImage: "plus.circle")
-                        .font(.caption)
-                }
-                .buttonStyle(.borderedProminent)
-
-                Spacer()
             }
         }
-        .padding(.vertical, 8)
+        .contentShape(Rectangle())
     }
 
-    func fallbackIcon(_ result: DiscoverResult) -> some View {
-        ZStack {
-            LinearGradient(colors: domainGradient(for: result.source), startPoint: .topLeading, endPoint: .bottomTrailing)
-            if let first = result.source.first {
-                Text(String(first).uppercased())
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.white.opacity(0.5))
-            }
-        }
-    }
-
-    func errorStateView(_ error: String) -> some View {
+    func errorView(_ error: String) -> some View {
         VStack(spacing: 16) {
+            Spacer()
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 48))
                 .foregroundStyle(.orange)
@@ -196,16 +151,51 @@ struct DiscoverSimilarView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Spacer()
+                .padding(.horizontal)
             Button {
                 Task { await vm.discoverSimilar(fromRecap: recap) }
             } label: {
                 Label("Try Again", systemImage: "arrow.clockwise")
-                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            Spacer()
         }
-        .padding()
+    }
+
+    // MARK: - Detail pane (web reader)
+
+    @ViewBuilder
+    var detailPane: some View {
+        if let result = selectedResult, let url = URL(string: result.url) {
+            WebView(url: url)
+                .ignoresSafeArea(edges: .bottom)
+                .navigationTitle(result.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            if !addedIds.contains(result.id) {
+                                addedIds.insert(result.id)
+                                Task { await vm.addDiscoveredArticle(result) }
+                            }
+                        } label: {
+                            if addedIds.contains(result.id) {
+                                Label("Saved", systemImage: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                            } else {
+                                Label("Add to Reading List", systemImage: "plus.circle")
+                            }
+                        }
+                        .disabled(addedIds.contains(result.id))
+                    }
+                }
+        } else {
+            ContentUnavailableView(
+                "Select an article",
+                systemImage: "newspaper",
+                description: Text("Pick a story from the list to read it here")
+            )
+        }
     }
 }
 

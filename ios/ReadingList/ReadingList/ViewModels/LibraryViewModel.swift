@@ -3,7 +3,7 @@ import SwiftUI
 import FoundationModels
 #endif
 
-struct DiscoverResult: Identifiable {
+struct DiscoverResult: Identifiable, Hashable {
     let id: String
     let title: String
     let snippet: String
