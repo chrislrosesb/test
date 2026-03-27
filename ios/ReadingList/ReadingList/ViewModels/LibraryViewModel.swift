@@ -532,7 +532,7 @@ final class LibraryViewModel {
         \(recap)
         """
         let response = try await session.respond(to: prompt)
-        let themes = response.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces).lowercased() }
+        let themes = response.content.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces).lowercased() }
         return Array(themes.prefix(8))
     }
 
