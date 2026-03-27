@@ -168,6 +168,7 @@ struct DiscoverSimilarView: View {
     var detailPane: some View {
         if let result = selectedResult, let url = URL(string: result.url) {
             WebView(url: url)
+                .id(result.id)
                 .ignoresSafeArea(edges: .bottom)
                 .navigationTitle(result.title)
                 .navigationBarTitleDisplayMode(.inline)
