@@ -21,31 +21,57 @@ struct DiscoverResult: Identifiable {
     }
 }
 
-struct DuckDuckGoResponse: Codable {
-    let relatedTopics: [RelatedTopic]
+// RSS XML parser delegate for Google News
+class RSSParser: NSObject, XMLParserDelegate {
+    var results: [DiscoverResult] = []
+    private var currentElement = ""
+    private var currentTitle = ""
+    private var currentLink = ""
+    private var currentSnippet = ""
+    private var currentSource = ""
+    private var insideItem = false
 
-    enum CodingKeys: String, CodingKey {
-        case relatedTopics = "RelatedTopics"
+    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?,
+                qualifiedName qName: String?, attributes attributeDict: [String: String] = [:]) {
+        currentElement = elementName
+        if elementName == "item" {
+            insideItem = true
+            currentTitle = ""; currentLink = ""; currentSnippet = ""; currentSource = ""
+        }
+        if elementName == "source" {
+            currentSource = attributeDict["url"] ?? ""
+        }
     }
-}
 
-struct RelatedTopic: Codable {
-    let text: String?
-    let firstURL: String?
-    let icon: IconData?
-
-    enum CodingKeys: String, CodingKey {
-        case text = "Text"
-        case firstURL = "FirstURL"
-        case icon = "Icon"
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        guard insideItem else { return }
+        let s = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty else { return }
+        switch currentElement {
+        case "title":  currentTitle += s
+        case "link":   currentLink += s
+        case "description": currentSnippet += s
+        case "source": if currentSource.isEmpty { currentSource = s }
+        default: break
+        }
     }
-}
 
-struct IconData: Codable {
-    let URL: String?
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
+        if elementName == "item" && insideItem {
+            let title = currentTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+            let link  = currentLink.trimmingCharacters(in: .whitespacesAndNewlines)
+            let snippet = currentSnippet
+                .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let source = currentSource.isEmpty
+                ? (URLComponents(string: link)?.host?.replacingOccurrences(of: "www.", with: "") ?? "web")
+                : (URLComponents(string: currentSource)?.host?.replacingOccurrences(of: "www.", with: "") ?? currentSource)
 
-    enum CodingKeys: String, CodingKey {
-        case URL
+            if !title.isEmpty && !link.isEmpty {
+                results.append(DiscoverResult(title: title, snippet: snippet, url: link, source: source, image: nil))
+            }
+            insideItem = false
+        }
     }
 }
 
@@ -548,74 +574,37 @@ final class LibraryViewModel {
     private func searchInternet(for themes: [String]) async {
         let query = themes.joined(separator: " ")
         do {
-            let results = try await searchDuckDuckGo(query: query)
-            discoverPhase = .ready(results)
+            let results = try await searchGoogleNews(query: query)
+            if results.isEmpty {
+                discoverPhase = .error("No articles found for your themes. Try generating a new Notes Review recap.")
+            } else {
+                discoverPhase = .ready(results)
+            }
         } catch {
             discoverPhase = .error("Search failed: \(error.localizedDescription)")
         }
     }
 
-    private func searchDuckDuckGo(query: String) async throws -> [DiscoverResult] {
+    private func searchGoogleNews(query: String) async throws -> [DiscoverResult] {
         let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
-        let urlString = "https://api.duckduckgo.com/?q=\(encoded)&format=json&no_redirect=1&t=procrastinate&kl=us-en"
+        let urlString = "https://news.google.com/rss/search?q=\(encoded)&hl=en-US&gl=US&ceid=US:en"
         guard let url = URL(string: urlString) else { throw NSError(domain: "Invalid URL", code: -1) }
 
         var request = URLRequest(url: url)
-        request.timeoutInterval = 10
+        request.timeoutInterval = 15
+        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
 
-        let (data, _) = try await URLSession.shared.data(for: request)
-        let decoder = JSONDecoder()
-
-        do {
-            let response = try decoder.decode(DuckDuckGoResponse.self, from: data)
-
-            var results: [DiscoverResult] = []
-
-            // Parse all related topics, being lenient with missing data
-            for item in response.relatedTopics.prefix(20) {
-                guard let result = parseTopicResult(item) else { continue }
-                results.append(result)
-                if results.count >= 12 { break }
-            }
-
-            return results.isEmpty ? [] : results
-        } catch {
-            throw NSError(domain: "DuckDuckGo API error", code: -1, userInfo: [NSLocalizedDescriptionKey: error.localizedDescription])
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            throw NSError(domain: "News fetch failed", code: http.statusCode)
         }
-    }
 
-    private func parseTopicResult(_ topic: RelatedTopic) -> DiscoverResult? {
-        let text = topic.text ?? ""
-        let url = topic.firstURL ?? ""
+        let delegate = RSSParser()
+        let parser = XMLParser(data: data)
+        parser.delegate = delegate
+        parser.parse()
 
-        // Require both text and URL for a valid result
-        guard !text.isEmpty, !url.isEmpty else { return nil }
-
-        let title = extractTitle(from: text)
-        let snippet = extractSnippet(from: text)
-
-        return DiscoverResult(
-            title: title,
-            snippet: snippet,
-            url: url,
-            source: extractDomain(from: url),
-            image: topic.icon?.URL
-        )
-    }
-
-    private func extractTitle(from text: String) -> String {
-        if let dashIndex = text.firstIndex(of: "-") {
-            return String(text[..<dashIndex]).trimmingCharacters(in: .whitespaces)
-        }
-        return String(text.prefix(60))
-    }
-
-    private func extractSnippet(from text: String) -> String {
-        if let dashIndex = text.firstIndex(of: "-") {
-            let snippet = String(text[text.index(after: dashIndex)...]).trimmingCharacters(in: .whitespaces)
-            return String(snippet.prefix(150))
-        }
-        return String(text.prefix(150))
+        return Array(delegate.results.prefix(12))
     }
 
     private func extractDomain(from url: String) -> String {
