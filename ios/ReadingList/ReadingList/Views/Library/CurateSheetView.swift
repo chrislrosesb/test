@@ -7,14 +7,16 @@ struct CurateSheetView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var recipient = ""
-    @State private var hint = ""          // user's rough reason — AI uses this as context
+    @State private var recipients: [Recipient] = []
+    @State private var chosenRecipient: Recipient? = nil
+    @State private var newName = ""
+    @State private var hint = ""
     @State private var generatedMessage = ""
-    @State private var phase: Phase = .form
+    @State private var phase: Phase = .loading
     @State private var shareURL: String? = nil
     @State private var error: String? = nil
 
-    enum Phase { case form, generating, preview, saving, success }
+    enum Phase { case loading, recipientPicker, newRecipient, form, generating, preview, saving, success }
 
     // MARK: - Body
 
@@ -22,49 +24,180 @@ struct CurateSheetView: View {
         NavigationStack {
             Group {
                 switch phase {
-                case .form:       formView
-                case .generating: generatingView
-                case .preview:    previewView
-                case .saving:     savingView
+                case .loading:         loadingView
+                case .recipientPicker: recipientPickerView
+                case .newRecipient:    newRecipientView
+                case .form:            formView
+                case .generating:      generatingView
+                case .preview:         previewView
+                case .saving:          savingView
                 case .success:
                     if let url = shareURL { successView(url: url) }
                 }
             }
-            .navigationTitle("Curate Collection")
+            .navigationTitle(navTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if phase == .success {
+                    if phase == .success || phase == .loading {
                         EmptyView()
                     } else {
-                        Button(phase == .preview ? "Back" : "Cancel") {
-                            if phase == .preview {
-                                withAnimation { phase = .form }
-                            } else {
-                                onDone(); dismiss()
-                            }
-                        }
+                        Button(backLabel) { handleBack() }
                     }
                 }
             }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .task { await loadRecipients() }
+    }
+
+    private var navTitle: String {
+        switch phase {
+        case .recipientPicker: return "Who's this for?"
+        case .newRecipient:    return "New Person"
+        case .success:         return "Done"
+        default:               return "Curate Collection"
+        }
+    }
+
+    private var backLabel: String {
+        switch phase {
+        case .preview:       return "Back"
+        case .form:          return "Back"
+        case .newRecipient:  return recipients.isEmpty ? "Cancel" : "Back"
+        default:             return "Cancel"
+        }
+    }
+
+    private func handleBack() {
+        switch phase {
+        case .preview:
+            withAnimation { phase = .form }
+        case .form:
+            withAnimation { phase = chosenRecipient != nil ? .recipientPicker : .newRecipient }
+        case .newRecipient:
+            if recipients.isEmpty { onDone(); dismiss() }
+            else { withAnimation { phase = .recipientPicker } }
+        default:
+            onDone(); dismiss()
+        }
+    }
+
+    // MARK: - Loading
+
+    var loadingView: some View {
+        VStack(spacing: 20) {
+            ProgressView().scaleEffect(1.4)
+            Text("Loading…").font(.subheadline).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Recipient Picker
+
+    var recipientPickerView: some View {
+        List {
+            Section {
+                Text("\(selectedLinks.count) article\(selectedLinks.count == 1 ? "" : "s") to add")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !recipients.isEmpty {
+                Section("Your people") {
+                    ForEach(recipients) { r in
+                        Button {
+                            chosenRecipient = r
+                            withAnimation { phase = .form }
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(r.name)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(.primary)
+                                    Text("?recipient=\(r.slug)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            Section {
+                Button {
+                    chosenRecipient = nil
+                    withAnimation { phase = .newRecipient }
+                } label: {
+                    Label("New Person…", systemImage: "person.badge.plus")
+                }
+            }
+        }
+    }
+
+    // MARK: - New Recipient
+
+    var newRecipientView: some View {
+        List {
+            Section {
+                TextField("Name (e.g. Sarah)", text: $newName)
+                    .autocorrectionDisabled()
+            } header: {
+                Text("Who are you curating for?")
+            } footer: {
+                let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    Text("Their permanent URL: …?recipient=\(slugify(trimmed))")
+                        .font(.caption)
+                }
+            }
+
+            if let error {
+                Section {
+                    Text(error).font(.caption).foregroundStyle(.red)
+                }
+            }
+
+            Section {
+                Button {
+                    withAnimation { phase = .form }
+                } label: {
+                    HStack {
+                        Spacer()
+                        Text("Continue").fontWeight(.semibold)
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
     }
 
     // MARK: - Form
 
     var formView: some View {
-        List {
+        let name = chosenRecipient?.name ?? newName
+        return List {
             Section {
                 Text("\(selectedLinks.count) article\(selectedLinks.count == 1 ? "" : "s") selected")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-            }
-
-            Section("Who is this for?") {
-                TextField("Recipient name (e.g. Sarah)", text: $recipient)
-                    .autocorrectionDisabled()
+                HStack(spacing: 6) {
+                    Image(systemName: "person.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(name)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
             }
 
             Section {
@@ -97,11 +230,11 @@ struct CurateSheetView: View {
                     }
                 } else {
                     Button {
-                        Task { await saveCollection(enrichedMessage: nil) }
+                        Task { await saveBatch(enrichedMessage: nil) }
                     } label: {
                         HStack {
                             Spacer()
-                            Label("Create Share Link", systemImage: "link.badge.plus")
+                            Label("Add to \(name)'s Feed", systemImage: "plus.circle.fill")
                                 .fontWeight(.semibold)
                             Spacer()
                         }
@@ -115,11 +248,8 @@ struct CurateSheetView: View {
 
     var generatingView: some View {
         VStack(spacing: 20) {
-            ProgressView()
-                .scaleEffect(1.4)
-            Text("Writing your message…")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            ProgressView().scaleEffect(1.4)
+            Text("Writing your message…").font(.subheadline).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -127,9 +257,10 @@ struct CurateSheetView: View {
     // MARK: - Preview
 
     var previewView: some View {
-        List {
+        let name = chosenRecipient?.name ?? newName
+        return List {
             Section {
-                Text("Here's what \(recipient.isEmpty ? "your friend" : recipient) will see:")
+                Text("Here's what \(name) will see:")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -141,7 +272,7 @@ struct CurateSheetView: View {
             } header: {
                 Text("Message preview")
             } footer: {
-                Text("You can edit this before sending.")
+                Text("You can edit this before adding.")
                     .font(.caption)
             }
 
@@ -160,11 +291,11 @@ struct CurateSheetView: View {
 
             Section {
                 Button {
-                    Task { await saveCollection(enrichedMessage: generatedMessage) }
+                    Task { await saveBatch(enrichedMessage: generatedMessage) }
                 } label: {
                     HStack {
                         Spacer()
-                        Label("Create Share Link", systemImage: "link.badge.plus")
+                        Label("Add to \(name)'s Feed", systemImage: "plus.circle.fill")
                             .fontWeight(.semibold)
                         Spacer()
                     }
@@ -177,11 +308,8 @@ struct CurateSheetView: View {
 
     var savingView: some View {
         VStack(spacing: 20) {
-            ProgressView()
-                .scaleEffect(1.4)
-            Text("Creating your collection…")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            ProgressView().scaleEffect(1.4)
+            Text("Adding to feed…").font(.subheadline).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -189,12 +317,13 @@ struct CurateSheetView: View {
     // MARK: - Success
 
     func successView(url: String) -> some View {
-        VStack(spacing: 20) {
+        let name = chosenRecipient?.name ?? newName
+        return VStack(spacing: 20) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 56))
                 .foregroundStyle(.green)
 
-            Text("Collection Created!")
+            Text("Added to \(name)'s feed!")
                 .font(.title3)
                 .fontWeight(.bold)
 
@@ -232,6 +361,20 @@ struct CurateSheetView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // MARK: - Load Recipients
+
+    func loadRecipients() async {
+        do {
+            let fetched = try await SupabaseClient.shared.fetchRecipients()
+            recipients = fetched
+            withAnimation {
+                phase = fetched.isEmpty ? .newRecipient : .recipientPicker
+            }
+        } catch {
+            withAnimation { phase = .newRecipient }
+        }
+    }
+
     // MARK: - AI Generation
 
     @available(iOS 26, *)
@@ -239,12 +382,13 @@ struct CurateSheetView: View {
         withAnimation { phase = .generating }
         error = nil
 
+        let name = chosenRecipient?.name ?? newName
+
         let articleContext = selectedLinks.map { link -> String in
             var parts = ["• \"\(link.title ?? link.url)\" (\(link.domain ?? ""))"]
             if let note = link.note, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 parts.append("  Your note: \(note.trimmingCharacters(in: .whitespacesAndNewlines))")
             }
-            // Use stored digest if available for richer context, otherwise fall back to summary
             if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty {
                 parts.append("  Article digest: \(ft.digest)")
             } else if let summary = link.summary, !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -253,9 +397,9 @@ struct CurateSheetView: View {
             return parts.joined(separator: "\n")
         }.joined(separator: "\n\n")
 
-        let recipientLine = recipient.isEmpty
+        let recipientLine = name.isEmpty
             ? "The recipient is a friend (no name given)."
-            : "The recipient's name is \(recipient)."
+            : "The recipient's name is \(name)."
 
         let hintLine = hint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? "No specific reason given — infer it from the article notes and content."
@@ -279,33 +423,51 @@ struct CurateSheetView: View {
             generatedMessage = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
             withAnimation { phase = .preview }
         } catch {
-            self.error = "Couldn't generate message — Apple Intelligence may not be available. You can still create the link without a personalised message."
+            self.error = "Couldn't generate message — Apple Intelligence may not be available. You can still add the articles without a personalised message."
             withAnimation { phase = .form }
         }
     }
 
-    // MARK: - Save
+    // MARK: - Save Batch
 
-    func saveCollection(enrichedMessage: String?) async {
+    func saveBatch(enrichedMessage: String?) async {
         withAnimation { phase = .saving }
         error = nil
         do {
+            let recipient: Recipient
+            if let existing = chosenRecipient {
+                recipient = existing
+            } else {
+                let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+                let slug = slugify(name)
+                recipient = try await SupabaseClient.shared.createRecipient(name: name, slug: slug)
+                chosenRecipient = recipient
+            }
+
             let ids = selectedLinks.map(\.id)
-            let collectionId = try await SupabaseClient.shared.createCollection(
-                recipient: recipient.isEmpty ? nil : recipient,
-                message: hint.isEmpty ? nil : hint,
-                enrichedMessage: enrichedMessage,
-                linkIds: ids
+            try await SupabaseClient.shared.createBatch(
+                recipientId: recipient.id,
+                linkIds: ids,
+                note: hint.isEmpty ? nil : hint,
+                enrichedMessage: enrichedMessage
             )
-            shareURL = "https://chrislrose.aseva.ai/c.html?id=\(collectionId)"
+
+            shareURL = "https://chrislrose.aseva.ai/reading-list.html?recipient=\(recipient.slug)"
             withAnimation { phase = .success }
         } catch {
             self.error = error.localizedDescription
-            withAnimation { phase = .preview }
+            withAnimation { phase = .form }
         }
     }
 
-    // MARK: - Share Sheet
+    // MARK: - Helpers
+
+    private func slugify(_ name: String) -> String {
+        name.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: "-")
+    }
 
     func shareURLActivity(_ urlString: String) {
         guard let url = URL(string: urlString) else { return }

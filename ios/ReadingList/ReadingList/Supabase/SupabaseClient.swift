@@ -222,6 +222,68 @@ final class SupabaseClient {
         }
     }
 
+    // MARK: - Recipients
+
+    func fetchRecipients() async throws -> [Recipient] {
+        var comps = URLComponents(string: "\(Config.baseURL)/rest/v1/recipients")!
+        comps.queryItems = [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "order", value: "name.asc")
+        ]
+        return try await get(url: comps.url!, type: [Recipient].self)
+    }
+
+    func createRecipient(name: String, slug: String) async throws -> Recipient {
+        for attempt in 0..<5 {
+            let candidateSlug = attempt == 0 ? slug : "\(slug)-\(attempt + 1)"
+            let url = URL(string: "\(Config.baseURL)/rest/v1/recipients")!
+            var req = URLRequest(url: url)
+            req.httpMethod = "POST"
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.setValue("return=representation", forHTTPHeaderField: "Prefer")
+            req.setValue(Config.anonKey, forHTTPHeaderField: "apikey")
+            if let token = accessToken {
+                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            }
+            req.httpBody = try JSONSerialization.data(withJSONObject: ["name": name, "slug": candidateSlug])
+
+            let (data, response) = try await URLSession.shared.data(for: req)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+
+            if status == 409 { continue } // slug conflict, try next
+            guard (200...299).contains(status) else {
+                let raw = String(data: data, encoding: .utf8) ?? ""
+                if raw.contains("23505") || raw.contains("duplicate") { continue }
+                throw SupabaseError.update
+            }
+
+            let created = try decoder.decode([Recipient].self, from: data)
+            guard let recipient = created.first else { throw SupabaseError.update }
+            return recipient
+        }
+        throw SupabaseError.update
+    }
+
+    func createBatch(recipientId: String, linkIds: [String], note: String?, enrichedMessage: String?) async throws {
+        let url = URL(string: "\(Config.baseURL)/rest/v1/recipient_batches")!
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(Config.anonKey, forHTTPHeaderField: "apikey")
+        if let token = accessToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        var body: [String: Any] = ["recipient_id": recipientId, "link_ids": linkIds]
+        if let n = note, !n.isEmpty { body["note"] = n }
+        if let em = enrichedMessage, !em.isEmpty { body["enriched_message"] = em }
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (_, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw SupabaseError.update
+        }
+    }
+
     // MARK: - Collections
 
     func createCollection(recipient: String?, message: String?, enrichedMessage: String?, linkIds: [String]) async throws -> String {

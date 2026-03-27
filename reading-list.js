@@ -47,7 +47,10 @@
     selectionMode:  false,
     selectedIds:    new Set(),
     collectionId:   null,
-    collectionData: null
+    collectionData: null,
+    recipientSlug:  null,
+    recipientData:  null,
+    newLinkIds:     null
   };
 
   // ── Boot ──────────────────────────────────────────────────────
@@ -114,30 +117,56 @@
       var params = new URLSearchParams(window.location.search);
       var urlCat        = params.get('category');
       var urlCollection = params.get('collection');
-      if (urlCat && !urlCollection) state.activeCategory = urlCat;
+      var urlRecipient  = params.get('recipient');
+      if (urlCat && !urlCollection && !urlRecipient) state.activeCategory = urlCat;
       if (urlCollection) state.collectionId = urlCollection;
+      if (urlRecipient)  state.recipientSlug = urlRecipient;
 
       var queries = [
         linksQuery,
-        db.from('categories').select('name, sort_order').order('sort_order')
+        db.from('categories').select('name, sort_order').order('sort_order'),
+        state.collectionId
+          ? db.from('collections').select('*').eq('id', state.collectionId).single()
+          : Promise.resolve(null),
+        state.recipientSlug
+          ? loadRecipientData(state.recipientSlug)
+          : Promise.resolve(null)
       ];
-      if (state.collectionId) {
-        queries.push(db.from('collections').select('*').eq('id', state.collectionId).single());
-      }
 
       Promise.all(queries).then(function (results) {
-        var linksRes = results[0], catsRes = results[1];
+        var linksRes = results[0], catsRes = results[1], collRes = results[2], recipData = results[3];
         if (linksRes.error) throw linksRes.error;
         state.allLinks   = linksRes.data || [];
         state.categories = (catsRes.data || []).map(function (c) { return c.name; });
 
         // Collection view mode
-        if (state.collectionId && results[2] && !results[2].error && results[2].data) {
-          state.collectionData = results[2].data;
+        if (state.collectionId && collRes && !collRes.error && collRes.data) {
+          state.collectionData = collRes.data;
           document.body.classList.add('collection-mode');
-          renderCollectionBanner(results[2].data);
-          var idOrder = results[2].data.link_ids || [];
+          renderCollectionBanner(collRes.data);
+          var idOrder = collRes.data.link_ids || [];
           state.filtered = idOrder
+            .map(function (id) { return state.allLinks.find(function (l) { return l.id === id; }); })
+            .filter(Boolean);
+          renderGrid();
+          return;
+        }
+
+        // Recipient feed mode
+        if (state.recipientSlug && recipData) {
+          state.recipientData = recipData;
+          document.body.classList.add('recipient-mode');
+          renderRecipientBanner(recipData);
+          var seenIds = {}, mergedIds = [];
+          recipData.batches.forEach(function (batch) {
+            (batch.link_ids || []).forEach(function (id) {
+              if (!seenIds[id]) { seenIds[id] = true; mergedIds.push(id); }
+            });
+          });
+          if (recipData.batches.length > 0) {
+            state.newLinkIds = new Set(recipData.batches[0].link_ids || []);
+          }
+          state.filtered = mergedIds
             .map(function (id) { return state.allLinks.find(function (l) { return l.id === id; }); })
             .filter(Boolean);
           renderGrid();
@@ -382,6 +411,95 @@
       shareBackdrop.onclick = closeShareModal;
     }
 
+    // ── Recipient data loader ─────────────────────────────────────
+    function loadRecipientData(slug) {
+      return db.from('recipients').select('*').eq('slug', slug).maybeSingle()
+        .then(function (recipRes) {
+          if (recipRes.error || !recipRes.data) return null;
+          var recipient = recipRes.data;
+          return db.from('recipient_batches').select('*')
+            .eq('recipient_id', recipient.id)
+            .order('created_at', { ascending: false })
+            .then(function (batchRes) {
+              return batchRes.error ? null : { recipient: recipient, batches: batchRes.data || [] };
+            });
+        });
+    }
+
+    // ── Recipient banner ──────────────────────────────────────────
+    function renderRecipientBanner(data) {
+      var recipient = data.recipient;
+      var batches   = data.batches;
+
+      // Deduplicated article count
+      var seenCount = {};
+      batches.forEach(function (b) {
+        (b.link_ids || []).forEach(function (id) { seenCount[id] = true; });
+      });
+      var count = Object.keys(seenCount).length;
+
+      var dateStr = '';
+      try {
+        if (batches.length > 0) {
+          dateStr = new Date(batches[0].created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+        }
+      } catch (e) {}
+
+      var html =
+        '<div class="collection-banner">' +
+          '<span class="collection-banner-icon">\uD83D\uDCDA</span>' +
+          '<div>' +
+            '<div class="collection-banner-title">Chris\u2019s picks for ' + escHtml(recipient.name) + '</div>' +
+            '<div class="collection-banner-meta">' +
+              count + ' article' + (count !== 1 ? 's' : '') +
+              (dateStr ? ' \u00b7 Updated ' + dateStr : '') +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+      // Batches that have a note, newest first
+      var notedBatches = batches.filter(function (b) {
+        var m = b.enriched_message || b.note;
+        return m && m.trim();
+      });
+
+      // Show newest note prominently
+      if (notedBatches.length > 0) {
+        var latest = notedBatches[0];
+        var latestMsg = latest.enriched_message || latest.note;
+        var paragraphs = latestMsg.split(/\n+/).filter(function (p) { return p.trim(); });
+        html += '<div class="collection-message">' +
+          paragraphs.map(function (p) { return '<p>' + escHtml(p) + '</p>'; }).join('') +
+          '</div>';
+      }
+
+      // Older notes in a <details> block
+      if (notedBatches.length > 1) {
+        var older = notedBatches.slice(1);
+        var detailsHtml =
+          '<details class="recipient-note-history">' +
+            '<summary>' + older.length + ' older note' + (older.length !== 1 ? 's' : '') + '</summary>';
+        older.forEach(function (b) {
+          var bMsg = b.enriched_message || b.note;
+          var bDate = '';
+          try {
+            bDate = new Date(b.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+          } catch (e) {}
+          var paras = bMsg.split(/\n+/).filter(function (p) { return p.trim(); });
+          detailsHtml +=
+            '<div class="recipient-note-item">' +
+              (bDate ? '<div class="recipient-note-date">' + escHtml(bDate) + '</div>' : '') +
+              paras.map(function (p) { return '<p>' + escHtml(p) + '</p>'; }).join('') +
+            '</div>';
+        });
+        detailsHtml += '</details>';
+        html += detailsHtml;
+      }
+
+      collectionBannerEl.innerHTML = html;
+      collectionBannerEl.removeAttribute('hidden');
+    }
+
     // ── Collection banner ─────────────────────────────────────────
     function renderCollectionBanner(collection) {
       var count   = (collection.link_ids || []).length;
@@ -577,12 +695,17 @@
         ? '<img class="link-card-favicon" src="' + escAttr(link.favicon) + '" alt="" loading="lazy" onerror="this.style.display=\'none\';" />'
         : '';
 
+      var newRibbon = (state.newLinkIds && state.newLinkIds.has(link.id))
+        ? '<div class="link-card-new-ribbon">NEW</div>'
+        : '';
+
       card.innerHTML =
         // Thumbnail
         '<div class="link-card-thumb-wrap">' +
           '<a href="' + escAttr(link.url) + '" target="_blank" rel="noopener noreferrer" tabindex="-1" aria-hidden="true">' +
             imgHtml +
           '</a>' +
+          newRibbon +
         '</div>' +
         // Main content
         '<div class="link-card-main">' +
