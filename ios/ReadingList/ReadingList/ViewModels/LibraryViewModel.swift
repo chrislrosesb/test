@@ -21,23 +21,23 @@ struct DiscoverResult: Identifiable, Hashable {
     }
 }
 
-// Algolia HackerNews search API response models
-private struct HNSearchResponse: Codable {
-    let hits: [HNHit]
+// NewsAPI.org response models
+private struct NewsAPIResponse: Codable {
+    let status: String
+    let articles: [NewsAPIArticle]
 }
 
-private struct HNHit: Codable {
-    let objectID: String
+private struct NewsAPIArticle: Codable {
     let title: String?
+    let description: String?
     let url: String?
-    let author: String?
-    let points: Int?
-    let storyText: String?
+    let urlToImage: String?
+    let publishedAt: String?
+    let source: NewsAPISource?
+}
 
-    enum CodingKeys: String, CodingKey {
-        case objectID, title, url, author, points
-        case storyText = "story_text"
-    }
+private struct NewsAPISource: Codable {
+    let name: String?
 }
 
 @MainActor
@@ -562,35 +562,35 @@ final class LibraryViewModel {
     }
 
     private func searchInternet(for themes: [String]) async {
-        let threeDaysAgo = Int(Date().addingTimeInterval(-3 * 86400).timeIntervalSince1970)
-        var seen = Set<String>()
-        var allResults: [(result: DiscoverResult, points: Int)] = []
+        let fmt = ISO8601DateFormatter()
+        fmt.formatOptions = [.withFullDate]
+        let today = fmt.string(from: Date())
+        let threeDaysAgo = fmt.string(from: Date().addingTimeInterval(-3 * 86400))
+        let sevenDaysAgo  = fmt.string(from: Date().addingTimeInterval(-7 * 86400))
 
-        // Search each phrase separately — specific phrases yield much better signal
+        var seen = Set<String>()
+        var allResults: [DiscoverResult] = []
+
+        // Search each phrase separately with 3-day window
         for theme in themes {
             guard !theme.isEmpty else { continue }
             do {
-                let (results, points) = try await searchHackerNews(query: theme, since: threeDaysAgo)
-                for (r, p) in zip(results, points) {
-                    if seen.insert(r.url).inserted {
-                        allResults.append((result: r, points: p))
-                    }
+                let results = try await searchNewsAPI(query: theme, from: threeDaysAgo, to: today)
+                for r in results where seen.insert(r.url).inserted {
+                    allResults.append(r)
                 }
             } catch {
                 continue
             }
         }
 
-        // If 3-day window is too narrow, widen to 7 days as fallback
+        // Widen to 7 days if too few results
         if allResults.count < 8 {
-            let sevenDaysAgo = Int(Date().addingTimeInterval(-7 * 86400).timeIntervalSince1970)
             for theme in themes.prefix(2) {
                 do {
-                    let (results, points) = try await searchHackerNews(query: theme, since: sevenDaysAgo)
-                    for (r, p) in zip(results, points) {
-                        if seen.insert(r.url).inserted {
-                            allResults.append((result: r, points: p))
-                        }
+                    let results = try await searchNewsAPI(query: theme, from: sevenDaysAgo, to: today)
+                    for r in results where seen.insert(r.url).inserted {
+                        allResults.append(r)
                     }
                 } catch {
                     continue
@@ -598,21 +598,18 @@ final class LibraryViewModel {
             }
         }
 
-        // Sort by points descending, take top 30 candidates for the AI to curate down
-        let candidates = allResults.sorted { $0.points > $1.points }.map { $0.result }
-
-        if candidates.isEmpty {
+        if allResults.isEmpty {
             discoverPhase = .error("No recent articles found for your topics. Try refreshing your Notes Review recap first.")
             return
         }
 
-        // AI post-filter: curate down to the most genuinely relevant stories
+        // AI post-filter: curate down to the most relevant stories
         discoverPhase = .curating
         if #available(iOS 26, *) {
-            let curated = await aiCurateResults(Array(candidates.prefix(30)), recap: discoverRecap)
-            discoverPhase = .ready(curated.isEmpty ? Array(candidates.prefix(10)) : curated)
+            let curated = await aiCurateResults(Array(allResults.prefix(30)), recap: discoverRecap)
+            discoverPhase = .ready(curated.isEmpty ? Array(allResults.prefix(10)) : curated)
         } else {
-            discoverPhase = .ready(Array(candidates.prefix(10)))
+            discoverPhase = .ready(Array(allResults.prefix(10)))
         }
     }
 
@@ -660,55 +657,44 @@ final class LibraryViewModel {
         #endif
     }
 
-    // Repo/code hosting domains — not articles, skip them
-    private static let excludedDomains: Set<String> = [
-        "github.com", "gitlab.com", "bitbucket.org", "codeberg.org",
-        "gist.github.com", "raw.githubusercontent.com"
-    ]
+    private func searchNewsAPI(query: String, from fromDate: String, to toDate: String) async throws -> [DiscoverResult] {
+        let apiKey = NewsAPIConfig.apiKey
+        guard !apiKey.isEmpty else { throw NSError(domain: "NewsAPI key not configured", code: -1) }
 
-    private func searchHackerNews(query: String, since timestamp: Int) async throws -> ([DiscoverResult], [Int]) {
         let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
-        // search_by_date returns newest-first; numericFilters restricts to after `timestamp`
-        let urlString = "https://hn.algolia.com/api/v1/search_by_date"
-            + "?query=\(encoded)"
-            + "&tags=story"
-            + "&numericFilters=created_at_i>\(timestamp)"
-            + "&hitsPerPage=20"
+        let urlString = "https://newsapi.org/v2/everything"
+            + "?q=\(encoded)"
+            + "&from=\(fromDate)"
+            + "&to=\(toDate)"
+            + "&sortBy=publishedAt"
+            + "&language=en"
+            + "&pageSize=20"
+
         guard let url = URL(string: urlString) else { throw NSError(domain: "Invalid URL", code: -1) }
 
         var request = URLRequest(url: url)
+        request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key")
         request.timeoutInterval = 12
         request.cachePolicy = .reloadIgnoringLocalCacheData
 
         let (data, response) = try await URLSession.shared.data(for: request)
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-            throw NSError(domain: "Search failed (\(http.statusCode))", code: http.statusCode)
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw NSError(domain: "NewsAPI error (\(http.statusCode)): \(body.prefix(200))", code: http.statusCode)
         }
 
-        let decoded = try JSONDecoder().decode(HNSearchResponse.self, from: data)
+        let decoded = try JSONDecoder().decode(NewsAPIResponse.self, from: data)
 
-        var results: [DiscoverResult] = []
-        var points: [Int] = []
-
-        for hit in decoded.hits {
-            guard let hitUrl = hit.url, !hitUrl.isEmpty,
-                  let title = hit.title, !title.isEmpty else { continue }
-
-            // Skip code repos — user wants articles
-            let host = URLComponents(string: hitUrl)?.host?.replacingOccurrences(of: "www.", with: "") ?? ""
-            if Self.excludedDomains.contains(host) { continue }
-
-            let domain = host.isEmpty ? "web" : host
-            let snippet = hit.storyText.map {
-                $0.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                    .prefix(150)
-            }.map(String.init) ?? ""
-            results.append(DiscoverResult(title: title, snippet: snippet, url: hitUrl, source: domain, image: nil))
-            points.append(hit.points ?? 0)
+        return decoded.articles.compactMap { article in
+            guard let title = article.title, !title.isEmpty,
+                  let articleUrl = article.url, !articleUrl.isEmpty,
+                  title != "[Removed]" else { return nil }
+            let sourceName = article.source?.name ?? {
+                URLComponents(string: articleUrl)?.host?.replacingOccurrences(of: "www.", with: "") ?? "web"
+            }()
+            let snippet = article.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return DiscoverResult(title: title, snippet: snippet, url: articleUrl, source: sourceName, image: article.urlToImage)
         }
-
-        return (results, points)
     }
 
     private func extractDomain(from url: String) -> String {
