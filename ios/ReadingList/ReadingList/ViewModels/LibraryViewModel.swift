@@ -523,7 +523,7 @@ final class LibraryViewModel {
 
     @available(iOS 26, *)
     private func extractThemesFromRecap(_ recap: String) async throws -> [String] {
-        let session = try LanguageModelSession(configuration: .default)
+        let session = LanguageModelSession()
         let prompt = """
         From this reading recap, extract 5-8 key themes or topics of interest as a comma-separated list.
         Just the topics, nothing else.
@@ -532,7 +532,7 @@ final class LibraryViewModel {
         \(recap)
         """
         let result = try await session.complete(prompt)
-        let themes = result.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+        let themes = result.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces).lowercased() }
         return Array(themes.prefix(8))
     }
 
@@ -621,13 +621,13 @@ final class LibraryViewModel {
                 tags: discoverThemes.joined(separator: ", "),
                 stars: nil,
                 note: nil,
-                status: "to-read",
-                private: false,
-                read: false,
                 summary: result.snippet,
+                status: "to-read",
+                read: false,
+                isPrivate: false,
                 savedAt: Date()
             )
-            try await SupabaseClient.shared.saveLink(link)
+            try await SupabaseClient.shared.insertLink(link)
             allLinks.insert(link, at: 0)
         } catch {
             errorMessage = "Failed to add article: \(error.localizedDescription)"

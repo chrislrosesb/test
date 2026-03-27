@@ -162,6 +162,25 @@ final class SupabaseClient {
 
     // MARK: - Write
 
+    func insertLink(_ link: Link) async throws {
+        let url = URL(string: "\(Config.baseURL)/rest/v1/links")!
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(Config.anonKey, forHTTPHeaderField: "apikey")
+        if let token = accessToken {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        req.httpBody = try encoder.encode(link)
+
+        let (_, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw SupabaseError.update
+        }
+    }
+
     func updateLink(id: String, fields: [String: Any], retried: Bool = false) async throws {
         var comps = URLComponents(string: "\(Config.baseURL)/rest/v1/links")!
         comps.queryItems = [URLQueryItem(name: "id", value: "eq.\(id)")]
