@@ -1,5 +1,4 @@
 import SwiftUI
-import Charts
 
 struct ProfileView: View {
     @Environment(LibraryViewModel.self) private var vm
@@ -17,11 +16,6 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             List {
-                overviewSection
-                statusBreakdownSection
-                categoryBreakdownSection
-                topDomainsSection
-                weeklyActivitySection
                 notificationSection
                 readerSection
                 librarySection
@@ -29,187 +23,6 @@ struct ProfileView: View {
             }
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.large)
-        }
-    }
-
-    // MARK: - Overview
-
-    var overviewSection: some View {
-        Section {
-            HStack(spacing: 0) {
-                statBox(value: "\(toReadCount)", label: "To Read", color: .blue)
-                statBox(value: "\(toDoCount)", label: "To Do", color: .orange)
-                statBox(value: "\(doneCount)", label: "Done", color: .green)
-                statBox(value: "\(unsortedCount)", label: "Unsorted", color: .secondary)
-            }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-        }
-    }
-
-    func statBox(value: String, label: String, color: Color) -> some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundStyle(color)
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-    }
-
-    // MARK: - Status Breakdown
-
-    var statusBreakdownSection: some View {
-        Section("Status Breakdown") {
-            let data = statusData
-            if !data.isEmpty {
-                Chart(data, id: \.status) { item in
-                    BarMark(
-                        x: .value("Count", item.count),
-                        y: .value("Status", item.label)
-                    )
-                    .foregroundStyle(item.color)
-                    .cornerRadius(4)
-                }
-                .frame(height: CGFloat(data.count) * 36)
-                .chartXAxis(.hidden)
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-            }
-        }
-    }
-
-    struct StatusItem {
-        let status: String
-        let label: String
-        let count: Int
-        let color: Color
-    }
-
-    var statusData: [StatusItem] {
-        let statuses: [(String, String, Color)] = [
-            ("to-read", "To Read", .blue),
-            ("to-try", "To Do", .orange),
-            ("done", "Done", .green),
-        ]
-        return statuses.compactMap { (status, label, color) in
-            let count = vm.allLinks.filter { $0.status == status }.count
-            return count > 0 ? StatusItem(status: status, label: label, count: count, color: color) : nil
-        }
-    }
-
-    // MARK: - Category Breakdown
-
-    var categoryBreakdownSection: some View {
-        Section("Top Categories") {
-            let cats = categoryData.prefix(6)
-            ForEach(Array(cats.enumerated()), id: \.offset) { _, item in
-                HStack {
-                    Text(item.name)
-                    Spacer()
-                    Text("\(item.count)")
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
-                    ProgressView(value: Double(item.count), total: Double(categoryData.first?.count ?? 1))
-                        .frame(width: 60)
-                        .tint(.indigo)
-                }
-            }
-        }
-    }
-
-    struct CategoryCount {
-        let name: String
-        let count: Int
-    }
-
-    var categoryData: [CategoryCount] {
-        var counts: [String: Int] = [:]
-        for link in vm.allLinks {
-            if let cat = link.category, !cat.isEmpty {
-                counts[cat, default: 0] += 1
-            }
-        }
-        return counts.map { CategoryCount(name: $0.key, count: $0.value) }
-            .sorted { $0.count > $1.count }
-    }
-
-    // MARK: - Top Domains
-
-    var topDomainsSection: some View {
-        Section("Top Sources") {
-            let domains = domainData.prefix(5)
-            ForEach(Array(domains.enumerated()), id: \.offset) { _, item in
-                HStack {
-                    Text(item.name)
-                        .font(.subheadline)
-                    Spacer()
-                    Text("\(item.count)")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-
-    var domainData: [CategoryCount] {
-        var counts: [String: Int] = [:]
-        for link in vm.allLinks {
-            if let dom = link.domain, !dom.isEmpty {
-                counts[dom, default: 0] += 1
-            }
-        }
-        return counts.map { CategoryCount(name: $0.key, count: $0.value) }
-            .sorted { $0.count > $1.count }
-    }
-
-    // MARK: - Weekly Activity
-
-    var weeklyActivitySection: some View {
-        Section("Last 7 Days") {
-            let data = weeklyData
-            if data.contains(where: { $0.count > 0 }) {
-                Chart(data, id: \.day) { item in
-                    BarMark(
-                        x: .value("Day", item.label),
-                        y: .value("Articles", item.count)
-                    )
-                    .foregroundStyle(.blue.gradient)
-                    .cornerRadius(4)
-                }
-                .frame(height: 120)
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-            } else {
-                Text("No articles saved this week")
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    struct DayCount: Identifiable {
-        let id = UUID()
-        let day: Date
-        let label: String
-        let count: Int
-    }
-
-    var weeklyData: [DayCount] {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE"
-
-        return (0..<7).reversed().map { daysAgo in
-            let date = calendar.date(byAdding: .day, value: -daysAgo, to: today)!
-            let count = vm.allLinks.filter { link in
-                guard let saved = link.savedAt else { return false }
-                return calendar.isDate(saved, inSameDayAs: date)
-            }.count
-            return DayCount(day: date, label: formatter.string(from: date), count: count)
         }
     }
 
@@ -330,19 +143,5 @@ struct ProfileView: View {
                 }
             }
         }
-    }
-
-    // MARK: - Computed
-
-    var doneCount: Int { vm.allLinks.filter { $0.status == "done" }.count }
-    var toReadCount: Int { vm.allLinks.filter { $0.status == "to-read" }.count }
-    var toDoCount: Int { vm.allLinks.filter { $0.status == "to-try" }.count }
-    var unsortedCount: Int { vm.allLinks.filter { $0.status == nil || ($0.status != "to-read" && $0.status != "to-try" && $0.status != "done") }.count }
-
-    var averageRating: String {
-        let rated = vm.allLinks.compactMap(\.stars).filter { $0 > 0 }
-        guard !rated.isEmpty else { return "—" }
-        let avg = Double(rated.reduce(0, +)) / Double(rated.count)
-        return String(format: "%.1f", avg)
     }
 }
