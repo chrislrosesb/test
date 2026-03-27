@@ -21,57 +21,22 @@ struct DiscoverResult: Identifiable, Hashable {
     }
 }
 
-// RSS XML parser delegate for Google News
-class RSSParser: NSObject, XMLParserDelegate {
-    var results: [DiscoverResult] = []
-    private var currentElement = ""
-    private var currentTitle = ""
-    private var currentLink = ""
-    private var currentSnippet = ""
-    private var currentSource = ""
-    private var insideItem = false
+// Algolia HackerNews search API response models
+private struct HNSearchResponse: Codable {
+    let hits: [HNHit]
+}
 
-    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?,
-                qualifiedName qName: String?, attributes attributeDict: [String: String] = [:]) {
-        currentElement = elementName
-        if elementName == "item" {
-            insideItem = true
-            currentTitle = ""; currentLink = ""; currentSnippet = ""; currentSource = ""
-        }
-        if elementName == "source" {
-            currentSource = attributeDict["url"] ?? ""
-        }
-    }
+private struct HNHit: Codable {
+    let objectID: String
+    let title: String?
+    let url: String?
+    let author: String?
+    let points: Int?
+    let storyText: String?
 
-    func parser(_ parser: XMLParser, foundCharacters string: String) {
-        guard insideItem else { return }
-        let s = string.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !s.isEmpty else { return }
-        switch currentElement {
-        case "title":  currentTitle += s
-        case "link":   currentLink += s
-        case "description": currentSnippet += s
-        case "source": if currentSource.isEmpty { currentSource = s }
-        default: break
-        }
-    }
-
-    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
-        if elementName == "item" && insideItem {
-            let title = currentTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-            let link  = currentLink.trimmingCharacters(in: .whitespacesAndNewlines)
-            let snippet = currentSnippet
-                .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let source = currentSource.isEmpty
-                ? (URLComponents(string: link)?.host?.replacingOccurrences(of: "www.", with: "") ?? "web")
-                : (URLComponents(string: currentSource)?.host?.replacingOccurrences(of: "www.", with: "") ?? currentSource)
-
-            if !title.isEmpty && !link.isEmpty {
-                results.append(DiscoverResult(title: title, snippet: snippet, url: link, source: source, image: nil))
-            }
-            insideItem = false
-        }
+    enum CodingKeys: String, CodingKey {
+        case objectID, title, url, author, points
+        case storyText = "story_text"
     }
 }
 
@@ -574,7 +539,7 @@ final class LibraryViewModel {
     private func searchInternet(for themes: [String]) async {
         let query = themes.joined(separator: " ")
         do {
-            let results = try await searchGoogleNews(query: query)
+            let results = try await searchHackerNews(query: query)
             if results.isEmpty {
                 discoverPhase = .error("No articles found for your themes. Try generating a new Notes Review recap.")
             } else {
@@ -585,26 +550,34 @@ final class LibraryViewModel {
         }
     }
 
-    private func searchGoogleNews(query: String) async throws -> [DiscoverResult] {
-        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
-        let urlString = "https://news.google.com/rss/search?q=\(encoded)&hl=en-US&gl=US&ceid=US:en"
+    private func searchHackerNews(query: String) async throws -> [DiscoverResult] {
+        // Use top 4 themes max to keep the query focused
+        let shortQuery = query.split(separator: " ").prefix(6).joined(separator: " ")
+        let encoded = shortQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? shortQuery
+        let urlString = "https://hn.algolia.com/api/v1/search?query=\(encoded)&tags=story&hitsPerPage=20"
         guard let url = URL(string: urlString) else { throw NSError(domain: "Invalid URL", code: -1) }
 
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
-        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await URLSession.shared.data(for: request)
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-            throw NSError(domain: "News fetch failed", code: http.statusCode)
+            throw NSError(domain: "Search failed (\(http.statusCode))", code: http.statusCode)
         }
 
-        let delegate = RSSParser()
-        let parser = XMLParser(data: data)
-        parser.delegate = delegate
-        parser.parse()
+        let decoded = try JSONDecoder().decode(HNSearchResponse.self, from: data)
 
-        return Array(delegate.results.prefix(12))
+        return decoded.hits.compactMap { hit in
+            guard let url = hit.url, !url.isEmpty,
+                  let title = hit.title, !title.isEmpty else { return nil }
+            let domain = URLComponents(string: url)?.host?.replacingOccurrences(of: "www.", with: "") ?? "web"
+            let snippet = hit.storyText.map {
+                $0.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .prefix(150)
+            }.map(String.init) ?? ""
+            return DiscoverResult(title: title, snippet: snippet, url: url, source: domain, image: nil)
+        }
     }
 
     private func extractDomain(from url: String) -> String {

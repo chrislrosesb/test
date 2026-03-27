@@ -89,15 +89,6 @@ struct IPadNavigationView: View {
                 columnVisibility = .automatic
             }
         }
-        .onChange(of: selectedSidebar) { _, newItem in
-            switch newItem {
-            case .read, .toDo, .library:
-                columnVisibility = .all
-            default:
-                // Discover views fill the full right side — no article detail column needed
-                columnVisibility = .doubleColumn
-            }
-        }
     }
 
     // MARK: - Sidebar
@@ -155,7 +146,7 @@ struct IPadNavigationView: View {
         }
     }
 
-    // MARK: - Content Column (article list)
+    // MARK: - Content Column (article list only — discover views go in detailColumn)
 
     @ViewBuilder
     var contentColumn: some View {
@@ -172,27 +163,9 @@ struct IPadNavigationView: View {
             IPadArticleList(statusFilter: "to-try", selectedLink: $selectedLink, isInfoMode: $isInfoMode)
                 .environment(vm)
                 .environment(authVM)
-        case .sources:
-            SourcesView()
-                .environment(vm)
-        case .insights:
-            LibraryInsightsView()
-                .environment(vm)
-        case .notes:
-            NotesReviewView()
-                .environment(vm)
-        case .knowledge:
-            KnowledgeSynthesisView()
-                .environment(vm)
-        case .search:
-            SearchView()
-                .environment(vm)
-        case .profile:
-            ProfileView()
-                .environment(vm)
-                .environment(authVM)
-        case .none:
-            ContentUnavailableView("Select a section", systemImage: "sidebar.left", description: Text("Choose from the sidebar"))
+        default:
+            // Discover views render in the wide detailColumn instead
+            EmptyView()
         }
     }
 
@@ -202,6 +175,27 @@ struct IPadNavigationView: View {
 
     @ViewBuilder
     var detailColumn: some View {
+        // Discover views fill the full detail (wide) column
+        switch selectedSidebar {
+        case .sources:
+            SourcesView().environment(vm)
+        case .insights:
+            LibraryInsightsView().environment(vm)
+        case .notes:
+            NotesReviewView().environment(vm)
+        case .knowledge:
+            KnowledgeSynthesisView().environment(vm)
+        case .search:
+            SearchView().environment(vm)
+        case .profile:
+            ProfileView().environment(vm).environment(authVM)
+        default:
+            articleReaderColumn
+        }
+    }
+
+    @ViewBuilder
+    var articleReaderColumn: some View {
         if let link = selectedLink {
             if isInfoMode {
                 // Info mode: show editable metadata inline
