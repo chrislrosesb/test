@@ -48,6 +48,7 @@ struct NotesReviewView: View {
     @State private var phase: NotesPhase = .idle
     @State private var addedActionItems: Set<Int> = []
     @State private var selectedLink: Link? = nil
+    @State private var showDiscoverSimilar = false
 
     private var dateRange: (start: Date, end: Date) {
         if selectedRange == .custom {
@@ -104,6 +105,12 @@ struct NotesReviewView: View {
         .fullScreenCover(item: $selectedLink) { link in
             if let idx = notedLinks.firstIndex(where: { $0.id == link.id }) {
                 ArticleReaderContainer(links: notedLinks, initialIndex: idx, vm: vm)
+            }
+        }
+        .sheet(isPresented: $showDiscoverSimilar) {
+            if case .ready(let recap, _) = phase {
+                DiscoverSimilarView(recap: recap)
+                    .environment(vm)
             }
         }
     }
@@ -197,6 +204,16 @@ struct NotesReviewView: View {
                 }
                 Text(recap)
                     .font(.subheadline)
+                HStack(spacing: 8) {
+                    Button {
+                        showDiscoverSimilar = true
+                    } label: {
+                        Label("Search Internet", systemImage: "magnifyingglass")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(.top, 4)
             }
             .padding(16)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))

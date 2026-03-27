@@ -3,6 +3,43 @@ import SwiftUI
 import FoundationModels
 #endif
 
+struct DiscoverResult: Identifiable {
+    let id = UUID()
+    let title: String
+    let snippet: String
+    let url: String
+    let source: String
+    let image: String?
+}
+
+struct DuckDuckGoResponse: Codable {
+    let relatedTopics: [RelatedTopic]
+
+    enum CodingKeys: String, CodingKey {
+        case relatedTopics = "RelatedTopics"
+    }
+}
+
+struct RelatedTopic: Codable {
+    let text: String?
+    let firstURL: String?
+    let icon: IconData?
+
+    enum CodingKeys: String, CodingKey {
+        case text = "Text"
+        case firstURL = "FirstURL"
+        case icon = "Icon"
+    }
+}
+
+struct IconData: Codable {
+    let URL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case URL
+    }
+}
+
 @MainActor
 @Observable
 final class LibraryViewModel {
@@ -24,6 +61,17 @@ final class LibraryViewModel {
 
     // AI Search
     var aiSearchResults: [Link]? = nil
+
+    // Discover Similar
+    enum DiscoverPhase {
+        case idle
+        case extracting
+        case searching
+        case ready([DiscoverResult])
+        case error(String)
+    }
+    var discoverPhase: DiscoverPhase = .idle
+    var discoverThemes: [String] = []
 
     var hasActiveFilters: Bool {
         selectedCategory != nil || selectedTag != nil || sortByStars
@@ -450,6 +498,145 @@ final class LibraryViewModel {
 
     func clearAISearch() {
         aiSearchResults = nil
+    }
+
+    // MARK: - Discover Similar
+
+    func discoverSimilar(fromRecap recap: String) async {
+        guard !recap.isEmpty else { return }
+        discoverPhase = .extracting
+
+        // Extract themes from Notes Review recap using Foundation Models
+        do {
+            if #available(iOS 26, *) {
+                let themes = try await extractThemesFromRecap(recap)
+                discoverThemes = themes
+                discoverPhase = .searching
+                await searchInternet(for: themes)
+            } else {
+                discoverPhase = .error("Requires iOS 26+")
+            }
+        } catch {
+            discoverPhase = .error(error.localizedDescription)
+        }
+    }
+
+    @available(iOS 26, *)
+    private func extractThemesFromRecap(_ recap: String) async throws -> [String] {
+        let session = try LanguageModelSession(configuration: .default)
+        let prompt = """
+        From this reading recap, extract 5-8 key themes or topics of interest as a comma-separated list.
+        Just the topics, nothing else.
+
+        Recap:
+        \(recap)
+        """
+        let result = try await session.complete(prompt)
+        let themes = result.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+        return Array(themes.prefix(8))
+    }
+
+    private func searchInternet(for themes: [String]) async {
+        let query = themes.joined(separator: " ")
+        do {
+            let results = try await searchDuckDuckGo(query: query)
+            discoverPhase = .ready(results)
+        } catch {
+            discoverPhase = .error("Search failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func searchDuckDuckGo(query: String) async throws -> [DiscoverResult] {
+        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+        let urlString = "https://api.duckduckgo.com/?q=\(encoded)&format=json&no_redirect=1"
+        guard let url = URL(string: urlString) else { throw NSError(domain: "Invalid URL", code: -1) }
+
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let decoder = JSONDecoder()
+        let response = try decoder.decode(DuckDuckGoResponse.self, from: data)
+
+        var results: [DiscoverResult] = []
+
+        // Use related topics or results if available
+        if !response.relatedTopics.isEmpty {
+            for item in response.relatedTopics.prefix(12) {
+                guard let result = parseTopicResult(item) else { continue }
+                results.append(result)
+            }
+        }
+
+        return results
+    }
+
+    private func parseTopicResult(_ topic: RelatedTopic) -> DiscoverResult? {
+        let text = topic.text ?? ""
+        let url = topic.firstURL ?? ""
+        guard !url.isEmpty, !text.isEmpty else { return nil }
+
+        let title = extractTitle(from: text)
+        let snippet = extractSnippet(from: text)
+
+        return DiscoverResult(
+            title: title,
+            snippet: snippet,
+            url: url,
+            source: extractDomain(from: url),
+            image: topic.icon?.URL
+        )
+    }
+
+    private func extractTitle(from text: String) -> String {
+        if let dashIndex = text.firstIndex(of: "-") {
+            return String(text[..<dashIndex]).trimmingCharacters(in: .whitespaces)
+        }
+        return String(text.prefix(60))
+    }
+
+    private func extractSnippet(from text: String) -> String {
+        if let dashIndex = text.firstIndex(of: "-") {
+            let snippet = String(text[text.index(after: dashIndex)...]).trimmingCharacters(in: .whitespaces)
+            return String(snippet.prefix(150))
+        }
+        return String(text.prefix(150))
+    }
+
+    private func extractDomain(from url: String) -> String {
+        if let components = URLComponents(string: url), let host = components.host {
+            return host.replacingOccurrences(of: "www.", with: "")
+        }
+        return "web"
+    }
+
+    func addDiscoveredArticle(_ result: DiscoverResult) async {
+        do {
+            let link = Link(
+                id: UUID().uuidString,
+                url: result.url,
+                title: result.title,
+                description: result.snippet,
+                image: result.image,
+                favicon: nil,
+                domain: result.source,
+                category: nil,
+                tags: discoverThemes.joined(separator: ", "),
+                stars: nil,
+                note: nil,
+                status: "to-read",
+                private: false,
+                read: false,
+                summary: result.snippet,
+                savedAt: Date()
+            )
+            try await SupabaseClient.shared.saveLink(link)
+            allLinks.insert(link, at: 0)
+        } catch {
+            errorMessage = "Failed to add article: \(error.localizedDescription)"
+        }
+    }
+
+    func clearDiscoverSimilar() {
+        discoverPhase = .idle
+        discoverThemes = []
     }
 
     // MARK: - Delete
