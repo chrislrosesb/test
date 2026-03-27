@@ -525,29 +525,53 @@ final class LibraryViewModel {
 
     @available(iOS 26, *)
     private func extractThemesFromRecap(_ recap: String) async throws -> [String] {
+        // Build extra context from the user's actual library: high-frequency tags + top categories
+        let topTags = Array(tagCounts.sorted { $0.value > $1.value }.prefix(10).map { $0.key })
+        let topCats = Array(
+            Dictionary(grouping: allLinks.compactMap { $0.category }, by: { $0 })
+                .sorted { $0.value.count > $1.value.count }
+                .prefix(5)
+                .map { $0.key }
+        )
+        let libraryContext = [
+            topTags.isEmpty ? "" : "My most-used tags: \(topTags.joined(separator: ", "))",
+            topCats.isEmpty ? "" : "My top categories: \(topCats.joined(separator: ", "))"
+        ].filter { !$0.isEmpty }.joined(separator: "\n")
+
         let session = LanguageModelSession()
         let prompt = """
-        From this reading recap, extract 5-8 key themes or topics of interest as a comma-separated list.
-        Just the topics, nothing else.
+        Based on this reading recap and my library context, extract 4-5 specific search phrases \
+        (2-3 words each) that would find great Hacker News articles I'd want to read.
+
+        Rules:
+        - Each phrase must be 2-3 words, never a single word
+        - Make them concrete and specific, not vague (e.g. "SwiftUI performance" not "mobile")
+        - Prioritise topics I seem most engaged with
+        - Return only a comma-separated list of phrases, nothing else
+
+        \(libraryContext)
 
         Recap:
         \(recap)
         """
         let response = try await session.respond(to: prompt)
-        let themes = response.content.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces).lowercased() }
-        return Array(themes.prefix(8))
+        let themes = response.content
+            .split(separator: ",")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty && $0.split(separator: " ").count >= 2 }
+        return Array(themes.prefix(5))
     }
 
     private func searchInternet(for themes: [String]) async {
-        // Search top 4 themes individually and merge, so one bad query doesn't fail everything
-        let topThemes = Array(themes.prefix(4))
+        let threeDaysAgo = Int(Date().addingTimeInterval(-3 * 86400).timeIntervalSince1970)
         var seen = Set<String>()
         var allResults: [(result: DiscoverResult, points: Int)] = []
 
-        for theme in topThemes {
+        // Search each phrase separately — specific phrases yield much better signal
+        for theme in themes {
             guard !theme.isEmpty else { continue }
             do {
-                let (results, points) = try await searchHackerNewsWithPoints(query: theme)
+                let (results, points) = try await searchHackerNews(query: theme, since: threeDaysAgo)
                 for (r, p) in zip(results, points) {
                     if seen.insert(r.url).inserted {
                         allResults.append((result: r, points: p))
@@ -558,34 +582,38 @@ final class LibraryViewModel {
             }
         }
 
-        // Sort by points descending, take top 25 candidates
-        let sorted = allResults.sorted { $0.points > $1.points }.map { $0.result }
-        var candidates = Array(sorted.prefix(25))
-
-        if candidates.isEmpty {
-            // Retry once with a combined query as fallback
-            let combined = topThemes.prefix(2).joined(separator: " ")
-            do {
-                let (results, _) = try await searchHackerNewsWithPoints(query: combined)
-                candidates = results
-            } catch {
-                discoverPhase = .error("Search failed: \(error.localizedDescription)")
-                return
+        // If 3-day window is too narrow, widen to 7 days as fallback
+        if allResults.count < 8 {
+            let sevenDaysAgo = Int(Date().addingTimeInterval(-7 * 86400).timeIntervalSince1970)
+            for theme in themes.prefix(2) {
+                do {
+                    let (results, points) = try await searchHackerNews(query: theme, since: sevenDaysAgo)
+                    for (r, p) in zip(results, points) {
+                        if seen.insert(r.url).inserted {
+                            allResults.append((result: r, points: p))
+                        }
+                    }
+                } catch {
+                    continue
+                }
             }
         }
 
+        // Sort by points descending, take top 30 candidates for the AI to curate down
+        let candidates = allResults.sorted { $0.points > $1.points }.map { $0.result }
+
         if candidates.isEmpty {
-            discoverPhase = .error("No articles found for your themes. Try generating a new Notes Review recap.")
+            discoverPhase = .error("No recent articles found for your topics. Try refreshing your Notes Review recap first.")
             return
         }
 
-        // AI post-filter: let Foundation Models pick the most relevant stories
+        // AI post-filter: curate down to the most genuinely relevant stories
         discoverPhase = .curating
         if #available(iOS 26, *) {
-            let curated = await aiCurateResults(candidates, recap: discoverRecap)
-            discoverPhase = .ready(curated.isEmpty ? candidates : curated)
+            let curated = await aiCurateResults(Array(candidates.prefix(30)), recap: discoverRecap)
+            discoverPhase = .ready(curated.isEmpty ? Array(candidates.prefix(10)) : curated)
         } else {
-            discoverPhase = .ready(candidates)
+            discoverPhase = .ready(Array(candidates.prefix(10)))
         }
     }
 
@@ -633,11 +661,20 @@ final class LibraryViewModel {
         #endif
     }
 
-    private func searchHackerNewsWithPoints(query: String) async throws -> ([DiscoverResult], [Int]) {
-        // Keep queries short — Algolia works best with 2-4 keyword terms
-        let shortQuery = query.split(separator: " ").prefix(4).joined(separator: " ")
-        let encoded = shortQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? shortQuery
-        let urlString = "https://hn.algolia.com/api/v1/search?query=\(encoded)&tags=story&hitsPerPage=20"
+    // Repo/code hosting domains — not articles, skip them
+    private static let excludedDomains: Set<String> = [
+        "github.com", "gitlab.com", "bitbucket.org", "codeberg.org",
+        "gist.github.com", "raw.githubusercontent.com"
+    ]
+
+    private func searchHackerNews(query: String, since timestamp: Int) async throws -> ([DiscoverResult], [Int]) {
+        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+        // search_by_date returns newest-first; numericFilters restricts to after `timestamp`
+        let urlString = "https://hn.algolia.com/api/v1/search_by_date"
+            + "?query=\(encoded)"
+            + "&tags=story"
+            + "&numericFilters=created_at_i>\(timestamp)"
+            + "&hitsPerPage=20"
         guard let url = URL(string: urlString) else { throw NSError(domain: "Invalid URL", code: -1) }
 
         var request = URLRequest(url: url)
@@ -657,7 +694,12 @@ final class LibraryViewModel {
         for hit in decoded.hits {
             guard let hitUrl = hit.url, !hitUrl.isEmpty,
                   let title = hit.title, !title.isEmpty else { continue }
-            let domain = URLComponents(string: hitUrl)?.host?.replacingOccurrences(of: "www.", with: "") ?? "web"
+
+            // Skip code repos — user wants articles
+            let host = URLComponents(string: hitUrl)?.host?.replacingOccurrences(of: "www.", with: "") ?? ""
+            if Self.excludedDomains.contains(host) { continue }
+
+            let domain = host.isEmpty ? "web" : host
             let snippet = hit.storyText.map {
                 $0.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
