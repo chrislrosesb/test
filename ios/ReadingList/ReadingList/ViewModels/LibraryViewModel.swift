@@ -526,13 +526,12 @@ final class LibraryViewModel {
     @available(iOS 26, *)
     private func extractThemesFromRecap(_ recap: String) async throws -> [String] {
         // Build extra context from the user's actual library: high-frequency tags + top categories
-        let topTags = Array(tagCounts.sorted { $0.value > $1.value }.prefix(10).map { $0.key })
-        let topCats = Array(
-            Dictionary(grouping: allLinks.compactMap { $0.category }, by: { $0 })
-                .sorted { $0.value.count > $1.value.count }
-                .prefix(5)
-                .map { $0.key }
-        )
+        let topTags = tagCounts.prefix(10).map { $0.tag }
+        let topCats: [String] = {
+            var counts: [String: Int] = [:]
+            for link in allLinks { if let c = link.category { counts[c, default: 0] += 1 } }
+            return counts.sorted { $0.value > $1.value }.prefix(5).map { $0.key }
+        }()
         let libraryContext = [
             topTags.isEmpty ? "" : "My most-used tags: \(topTags.joined(separator: ", "))",
             topCats.isEmpty ? "" : "My top categories: \(topCats.joined(separator: ", "))"
