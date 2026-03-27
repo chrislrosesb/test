@@ -583,7 +583,7 @@ final class LibraryViewModel {
         // Keep queries short — Algolia works best with 2-4 keyword terms
         let shortQuery = query.split(separator: " ").prefix(4).joined(separator: " ")
         let encoded = shortQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? shortQuery
-        let urlString = "https://hn.algolia.com/api/v1/search?query=\(encoded)&tags=story&hitsPerPage=15&minPoints=10"
+        let urlString = "https://hn.algolia.com/api/v1/search?query=\(encoded)&tags=story&hitsPerPage=20"
         guard let url = URL(string: urlString) else { throw NSError(domain: "Invalid URL", code: -1) }
 
         var request = URLRequest(url: url)
