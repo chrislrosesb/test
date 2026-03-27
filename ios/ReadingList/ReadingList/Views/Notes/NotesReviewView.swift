@@ -107,7 +107,7 @@ struct NotesReviewView: View {
                 ArticleReaderContainer(links: notedLinks, initialIndex: idx, vm: vm)
             }
         }
-        .sheet(isPresented: $showDiscoverSimilar) {
+        .fullScreenCover(isPresented: $showDiscoverSimilar) {
             if case .ready(let recap, _) = phase {
                 DiscoverSimilarView(recap: recap)
                     .environment(vm)

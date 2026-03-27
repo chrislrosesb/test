@@ -89,6 +89,15 @@ struct IPadNavigationView: View {
                 columnVisibility = .automatic
             }
         }
+        .onChange(of: selectedSidebar) { _, newItem in
+            switch newItem {
+            case .read, .toDo, .library:
+                columnVisibility = .all
+            default:
+                // Discover views fill the full right side — no article detail column needed
+                columnVisibility = .doubleColumn
+            }
+        }
     }
 
     // MARK: - Sidebar
