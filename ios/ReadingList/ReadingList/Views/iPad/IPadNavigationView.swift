@@ -419,8 +419,19 @@ struct IPadArticleList: View {
         .listStyle(.plain)
         .navigationTitle(navTitle)
         .refreshable { await vm.refresh() }
-        .overlay(alignment: .bottom) {
-            if isCurating {
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let progress = vm.enrichAllProgress {
+                HStack(spacing: 12) {
+                    ProgressView().scaleEffect(0.8)
+                    Text("Enriching \(progress.current) of \(progress.total)…")
+                        .font(.subheadline)
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(.regularMaterial)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if isCurating {
                 HStack {
                     Button("Cancel") {
                         withAnimation { isCurating = false; curateSelection.removeAll() }
@@ -443,6 +454,7 @@ struct IPadArticleList: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .animation(.spring(duration: 0.3), value: vm.enrichAllProgress != nil || isCurating)
         .animation(.spring(duration: 0.3), value: isCurating)
         .sheet(isPresented: $showCurateSheet) {
             CurateSheetView(
@@ -498,6 +510,15 @@ struct IPadArticleList: View {
                             withAnimation { isCurating = true; curateSelection.removeAll() }
                         } label: {
                             Label("Curate Collection", systemImage: "rectangle.stack.badge.plus")
+                        }
+                        if #available(iOS 26, *) {
+                            Button {
+                                Task { await vm.enrichAll() }
+                            } label: {
+                                let count = vm.unenrichedLinks.count
+                                Label(count > 0 ? "Enrich All (\(count))" : "All Enriched", systemImage: "sparkles")
+                            }
+                            .disabled(vm.unenrichedLinks.isEmpty || vm.isEnrichingAll)
                         }
                     }
                 } label: {
