@@ -201,12 +201,12 @@ struct CurateSheetView: View {
             }
 
             Section {
-                TextField("Why these? (e.g. \"she loves AI tools\")", text: $hint, axis: .vertical)
+                TextField("Add a personal note… (optional)", text: $hint, axis: .vertical)
                     .lineLimit(2...4)
             } header: {
-                Text("Your hint for the AI")
+                Text("Personal note")
             } footer: {
-                Text("Optional — the AI will also read your notes on each article.")
+                Text("Your own words, shown as-is. The AI summary is generated separately.")
                     .font(.caption)
             }
 
@@ -223,7 +223,7 @@ struct CurateSheetView: View {
                     } label: {
                         HStack {
                             Spacer()
-                            Label("Personalise with AI", systemImage: "sparkles")
+                            Label("Generate AI Summary", systemImage: "sparkles")
                                 .fontWeight(.semibold)
                             Spacer()
                         }
@@ -260,7 +260,7 @@ struct CurateSheetView: View {
     var generatingView: some View {
         VStack(spacing: 20) {
             ProgressView().scaleEffect(1.4)
-            Text("Writing your message…").font(.subheadline).foregroundStyle(.secondary)
+            Text("Generating AI summary…").font(.subheadline).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -269,19 +269,30 @@ struct CurateSheetView: View {
 
     var previewView: some View {
         let name = chosenRecipient?.name ?? newName
+        let personalNote = hint.trimmingCharacters(in: .whitespacesAndNewlines)
         return List {
             Section {
-                Text("Here's what \(name) will see:")
+                Text("Preview for \(name):")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
+            if !personalNote.isEmpty {
+                Section {
+                    Text(personalNote)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                } header: {
+                    Label("Personal note", systemImage: "pencil")
+                }
+            }
+
             Section {
                 TextEditor(text: $generatedMessage)
-                    .frame(minHeight: 140)
+                    .frame(minHeight: 120)
                     .font(.body)
             } header: {
-                Text("Message preview")
+                Label("AI Summary", systemImage: "sparkles")
             } footer: {
                 Text("You can edit this before adding.")
                     .font(.caption)
@@ -293,7 +304,7 @@ struct CurateSheetView: View {
                 } label: {
                     HStack {
                         Spacer()
-                        Label("Regenerate", systemImage: "arrow.clockwise")
+                        Label("Regenerate Summary", systemImage: "arrow.clockwise")
                         Spacer()
                     }
                 }
@@ -393,39 +404,26 @@ struct CurateSheetView: View {
         withAnimation { phase = .generating }
         error = nil
 
-        let name = chosenRecipient?.name ?? newName
-
         let articleContext = selectedLinks.map { link -> String in
             var parts = ["• \"\(link.title ?? link.url)\" (\(link.domain ?? ""))"]
             if let note = link.note, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                parts.append("  Your note: \(note.trimmingCharacters(in: .whitespacesAndNewlines))")
+                parts.append("  Note: \(note.trimmingCharacters(in: .whitespacesAndNewlines))")
             }
             if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty {
-                parts.append("  Article digest: \(ft.digest)")
+                parts.append("  Digest: \(ft.digest)")
             } else if let summary = link.summary, !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 parts.append("  Summary: \(summary.trimmingCharacters(in: .whitespacesAndNewlines))")
             }
             return parts.joined(separator: "\n")
         }.joined(separator: "\n\n")
 
-        let recipientLine = name.isEmpty
-            ? "The recipient is a friend (no name given)."
-            : "The recipient's name is \(name)."
-
-        let hintLine = hint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? "No specific reason given — infer it from the article notes and content."
-            : "Chris's reason for sharing: \"\(hint.trimmingCharacters(in: .whitespacesAndNewlines))\""
-
         let prompt = """
-        Write a short personal note from Chris Rose to a friend, sharing a curated reading list.
+        Summarise the following curated articles for a reader.
 
-        \(recipientLine)
-        \(hintLine)
-
-        Articles Chris selected:
+        Articles:
         \(articleContext)
 
-        Write 2–3 short paragraphs in Chris's voice — warm, genuine, like a message you'd send a friend, not a newsletter. First person as Chris. Reference what made him pick these for this specific person, drawing on his notes where possible. End with a brief, casual sign-off. No bullet points. No em dashes. Keep it under 120 words.
+        Write 2–3 concise paragraphs that highlight the key themes, what makes these articles worth reading, and any notable insights across them. Be direct and informative — this is an editorial summary, not a personal message. No greeting, no sign-off, no first-person statements. No bullet points. No em dashes. Under 120 words.
         """
 
         do {
@@ -434,7 +432,7 @@ struct CurateSheetView: View {
             generatedMessage = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
             withAnimation { phase = .preview }
         } catch {
-            self.error = "Couldn't generate message — Apple Intelligence may not be available. You can still add the articles without a personalised message."
+            self.error = "Couldn't generate summary — Apple Intelligence may not be available. You can still add the articles without a summary."
             withAnimation { phase = .form }
         }
     }

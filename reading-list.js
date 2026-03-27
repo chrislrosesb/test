@@ -457,39 +457,50 @@
           '</div>' +
         '</div>';
 
-      // Batches that have a note, newest first
-      var notedBatches = batches.filter(function (b) {
-        var m = b.enriched_message || b.note;
-        return m && m.trim();
-      });
-
-      // Show newest note prominently
-      if (notedBatches.length > 0) {
-        var latest = notedBatches[0];
-        var latestMsg = latest.enriched_message || latest.note;
-        var paragraphs = latestMsg.split(/\n+/).filter(function (p) { return p.trim(); });
-        html += '<div class="collection-message">' +
-          paragraphs.map(function (p) { return '<p>' + escHtml(p) + '</p>'; }).join('') +
-          '</div>';
+      // Helper: render a single batch's note + ai summary as two labeled sections
+      function renderBatchContent(batch) {
+        var out = '';
+        var personalNote = (batch.note || '').trim();
+        var aiSummary = (batch.enriched_message || '').trim();
+        if (personalNote) {
+          var paras = personalNote.split(/\n+/).filter(function (p) { return p.trim(); });
+          out += '<div class="recipient-section-label">\u270F\uFE0F Personal note</div>' +
+            '<div class="collection-message">' +
+            paras.map(function (p) { return '<p>' + escHtml(p) + '</p>'; }).join('') +
+            '</div>';
+        }
+        if (aiSummary) {
+          var aiParas = aiSummary.split(/\n+/).filter(function (p) { return p.trim(); });
+          out += '<div class="recipient-section-label">\u2728 AI Summary</div>' +
+            '<div class="collection-message">' +
+            aiParas.map(function (p) { return '<p>' + escHtml(p) + '</p>'; }).join('') +
+            '</div>';
+        }
+        return out;
       }
 
-      // Older notes in a <details> block
-      if (notedBatches.length > 1) {
-        var older = notedBatches.slice(1);
+      // Newest batch content
+      if (batches.length > 0) {
+        html += renderBatchContent(batches[0]);
+      }
+
+      // Older batches in a <details> block (only those with any content)
+      var olderBatches = batches.slice(1).filter(function (b) {
+        return (b.note && b.note.trim()) || (b.enriched_message && b.enriched_message.trim());
+      });
+      if (olderBatches.length > 0) {
         var detailsHtml =
           '<details class="recipient-note-history">' +
-            '<summary>' + older.length + ' older note' + (older.length !== 1 ? 's' : '') + '</summary>';
-        older.forEach(function (b) {
-          var bMsg = b.enriched_message || b.note;
+            '<summary>' + olderBatches.length + ' older update' + (olderBatches.length !== 1 ? 's' : '') + '</summary>';
+        olderBatches.forEach(function (b) {
           var bDate = '';
           try {
             bDate = new Date(b.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
           } catch (e) {}
-          var paras = bMsg.split(/\n+/).filter(function (p) { return p.trim(); });
           detailsHtml +=
             '<div class="recipient-note-item">' +
               (bDate ? '<div class="recipient-note-date">' + escHtml(bDate) + '</div>' : '') +
-              paras.map(function (p) { return '<p>' + escHtml(p) + '</p>'; }).join('') +
+              renderBatchContent(b) +
             '</div>';
         });
         detailsHtml += '</details>';
