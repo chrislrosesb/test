@@ -83,14 +83,32 @@ struct DiscoverSimilarView: View {
     }
 
     func resultsView(_ results: [DiscoverResult]) -> some View {
-        VStack(spacing: 0) {
+        if results.isEmpty {
+            return AnyView(
+                VStack(spacing: 16) {
+                    Image(systemName: "magnifyingglass.circle")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.secondary)
+                    Text("No results found")
+                        .font(.headline)
+                    Text("Try a different search or check your internet connection")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Spacer()
+                }
+                .padding()
+            )
+        }
+
+        return AnyView(
             List {
                 ForEach(results) { result in
                     resultRow(result)
                 }
             }
             .listStyle(.plain)
-        }
+        )
     }
 
     func resultRow(_ result: DiscoverResult) -> some View {
