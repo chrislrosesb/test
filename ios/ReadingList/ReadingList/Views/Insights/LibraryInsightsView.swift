@@ -194,10 +194,18 @@ struct LibraryInsightsView: View {
                 }
             }
             .task {
-                let store = ArticleFullTextStore.shared
-                let all = store.fetchAll()
-                fullTextCount = all.count
-                fullTextWordCount = all.reduce(0) { $0 + $1.wordCount }
+                // Use fetch(linkId:) per article — avoids the fetchAll SortDescriptor
+                // silent-failure issue; fetch(linkId:) is proven-working in ArticleDetailView.
+                var count = 0
+                var totalWords = 0
+                for link in vm.allLinks {
+                    if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id) {
+                        count += 1
+                        totalWords += ft.wordCount
+                    }
+                }
+                fullTextCount = count
+                fullTextWordCount = totalWords
                 withAnimation(.easeOut(duration: 0.8)) {
                     appeared = true
                     animProgress = 1.0
