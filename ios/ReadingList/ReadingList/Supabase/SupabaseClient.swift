@@ -233,7 +233,7 @@ final class SupabaseClient {
         return try await get(url: comps.url!, type: [Recipient].self)
     }
 
-    func createRecipient(name: String, slug: String) async throws -> Recipient {
+    func createRecipient(name: String, slug: String, retried: Bool = false) async throws -> Recipient {
         for attempt in 0..<5 {
             let candidateSlug = attempt == 0 ? slug : "\(slug)-\(attempt + 1)"
             let url = URL(string: "\(Config.baseURL)/rest/v1/recipients")!
@@ -250,9 +250,14 @@ final class SupabaseClient {
             let (data, response) = try await URLSession.shared.data(for: req)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
 
+            if status == 401 && !retried {
+                try await refreshSession()
+                return try await createRecipient(name: name, slug: slug, retried: true)
+            }
             if status == 409 { continue } // slug conflict, try next
             guard (200...299).contains(status) else {
                 let raw = String(data: data, encoding: .utf8) ?? ""
+                print("❌ createRecipient failed (\(status)): \(raw.prefix(300))")
                 if raw.contains("23505") || raw.contains("duplicate") { continue }
                 throw SupabaseError.update
             }
@@ -264,7 +269,7 @@ final class SupabaseClient {
         throw SupabaseError.update
     }
 
-    func createBatch(recipientId: String, linkIds: [String], note: String?, enrichedMessage: String?) async throws {
+    func createBatch(recipientId: String, linkIds: [String], note: String?, enrichedMessage: String?, retried: Bool = false) async throws {
         let url = URL(string: "\(Config.baseURL)/rest/v1/recipient_batches")!
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
@@ -278,8 +283,16 @@ final class SupabaseClient {
         if let em = enrichedMessage, !em.isEmpty { body["enriched_message"] = em }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (_, response) = try await URLSession.shared.data(for: req)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+        let (data, response) = try await URLSession.shared.data(for: req)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if status == 401 && !retried {
+            try await refreshSession()
+            try await createBatch(recipientId: recipientId, linkIds: linkIds, note: note, enrichedMessage: enrichedMessage, retried: true)
+            return
+        }
+        guard (200...299).contains(status) else {
+            let raw = String(data: data, encoding: .utf8) ?? ""
+            print("❌ createBatch failed (\(status)): \(raw.prefix(300))")
             throw SupabaseError.update
         }
     }

@@ -228,6 +228,17 @@ struct CurateSheetView: View {
                             Spacer()
                         }
                     }
+                    Button {
+                        Task { await saveBatch(enrichedMessage: nil) }
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Text("Add to \(name)'s Feed")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
                 } else {
                     Button {
                         Task { await saveBatch(enrichedMessage: nil) }
