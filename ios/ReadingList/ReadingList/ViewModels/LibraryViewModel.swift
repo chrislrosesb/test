@@ -531,8 +531,8 @@ final class LibraryViewModel {
         Recap:
         \(recap)
         """
-        let result = try await session.complete(prompt)
-        let themes = result.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces).lowercased() }
+        let response = try await session.respond(to: prompt)
+        let themes = response.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces).lowercased() }
         return Array(themes.prefix(8))
     }
 
