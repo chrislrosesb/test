@@ -71,16 +71,7 @@ struct DiscoverSimilarView: View {
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundStyle(.secondary)
-                    Wrap(spacing: 8) {
-                        ForEach(vm.discoverThemes, id: \.self) { theme in
-                            Text(theme)
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(.secondary.opacity(0.2))
-                                .cornerRadius(4)
-                        }
-                    }
+                    Wrap(themes: vm.discoverThemes, spacing: 8)
                 }
                 .padding()
                 .background(.regularMaterial)
@@ -200,28 +191,20 @@ struct DiscoverSimilarView: View {
     }
 }
 
-// Simple wrapping layout for themes
-struct Wrap<Content: View>: View {
+// Simple horizontal wrapping layout for theme tags
+struct Wrap: View {
+    let themes: [String]
     let spacing: CGFloat
-    let content: [Content]
-
-    init(spacing: CGFloat = 8, @ViewBuilder _ content: @escaping () -> [Content]) {
-        self.spacing = spacing
-        self.content = content()
-    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: spacing) {
-            var line: [Content] = []
-            var lineWidth: CGFloat = 0
-
-            ForEach(0..<content.count, id: \.self) { i in
-                let item = content[i]
-                HStack(spacing: spacing) {
-                    ForEach(0..<line.count, id: \.self) { j in
-                        line[j]
-                    }
-                }
+        HStack(spacing: spacing) {
+            ForEach(themes, id: \.self) { theme in
+                Text(theme)
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.secondary.opacity(0.2))
+                    .cornerRadius(4)
             }
         }
     }
