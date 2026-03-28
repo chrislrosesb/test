@@ -388,4 +388,51 @@ All HTML pages have Open Graph and Twitter Card meta tags for iMessage/social ri
 
 ---
 
-*Last updated: 2026-03-25 (session 2) by Claude Code*
+## Session Summary — 2026-03-27
+
+### What We Built: Persistent Curate Recipients
+
+The Curate feature was completely rearchitected. Previously, each "Curate" created a one-time snapshot collection with a new URL every time. Now recipients are persistent people with permanent URLs they can bookmark.
+
+#### New Supabase Tables (must be created manually in Supabase SQL Editor)
+- **`recipients`** — `id` (uuid), `name`, `slug` (unique, URL-safe), `created_at`
+- **`recipient_batches`** — `id`, `recipient_id` (FK → recipients), `link_ids[]`, `note`, `enriched_message`, `created_at`
+- Both tables have RLS: public SELECT, authenticated INSERT/UPDATE/DELETE
+- SQL is in the plan file at `/Users/macmini/.claude/plans/resilient-greeting-penguin.md`
+
+#### iOS App Changes
+- **`Recipient.swift`** — new model (`Models/Recipient.swift`)
+- **`SupabaseClient`** — new methods: `fetchRecipients()`, `createRecipient(name:slug:)` (with slug-conflict retry + 401 token refresh), `createBatch(recipientId:linkIds:note:enrichedMessage:)`
+- **`CurateSheetView`** — fully redesigned with new phases: `loading → recipientPicker → newRecipient → form → generating → preview → saving → success`
+  - On open: loads recipients from Supabase, shows picker or "New Person…" if empty
+  - Each curate session creates a batch tied to the chosen recipient
+  - Success screen shows permanent URL: `reading-list.html?recipient=<slug>`
+  - Two labeled sections on preview: **Personal note** (your words, verbatim) + **AI Summary** (objective editorial summary of the articles, not a fake personal message)
+  - "Generate AI Summary" + "Add to Feed without AI" both available on iOS 26
+- **Auth fix:** Expired sessions now silently degrade to guest (public links) instead of showing "Session expired" error with no sign-in path
+
+#### Website Changes (`reading-list.js`, `styles.css`)
+- `?recipient=<slug>` mode: fetches recipient + all batches, deduplicates articles across batches, renders full living feed
+- Latest batch articles get a **diagonal "NEW" ribbon** on their thumbnail
+- Banner shows two labeled sections per batch: "✏️ Personal note" and "✨ AI Summary"
+- Multiple batches: newest shown, older ones collapsible under "N older updates" `<details>` block
+- Legacy `?collection=` URLs unchanged
+
+### Current State
+| Component | Status |
+|-----------|--------|
+| Supabase tables (`recipients`, `recipient_batches`) | ⚠️ **Requires manual SQL run in dashboard** |
+| iOS app code | ✅ Built, needs Xcode rebuild |
+| Website (`reading-list.js`, `styles.css`) | ✅ Deployed to GitHub Pages |
+| Primary site (`chrislrose.aseva.ai`) | ✅ Deployed (auto-deploys from main) |
+
+### Known Issues / Next Steps
+- **Supabase SQL:** If not yet run, `createRecipient` and `createBatch` will fail with "Failed to save changes." Check Xcode console for the exact error (❌ print lines added).
+- **No recipient management UI:** Recipients can only be created from the iOS Curate flow. There is no way to rename or delete a recipient yet — would need to be done directly in Supabase dashboard or a future admin UI.
+- **No article removal from feed:** Feeds are append-only by design. A future "remove article" feature would need a join table approach rather than the current `link_ids[]` array.
+- **`note_updated_at`:** Notes Review still filters by `savedAt` as a proxy. Adding a `note_updated_at` column to `links` would make it more accurate.
+- **Distribution:** iOS app requires manual Xcode build + copy to device. Paid Apple Developer account ($99/yr) would enable direct distribution.
+
+---
+
+*Last updated: 2026-03-27 by Claude Code*
