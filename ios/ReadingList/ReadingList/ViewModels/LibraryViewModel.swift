@@ -713,7 +713,7 @@ final class LibraryViewModel {
                 description: result.snippet,
                 image: result.image,
                 favicon: nil,
-                domain: result.source,
+                domain: extractDomain(from: result.url),
                 category: nil,
                 tags: discoverThemes.joined(separator: ", "),
                 stars: nil,

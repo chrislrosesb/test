@@ -30,8 +30,10 @@ final class DigestNotificationManager {
 
     func schedule(links: [Link], hour: Int, minute: Int, frequency: DigestFrequency) {
         let center = UNUserNotificationCenter.current()
-        // Remove all existing digest notifications
-        center.removePendingNotificationRequests(withIdentifiers: identifiers(for: frequency))
+        // Remove all existing digest notifications (all frequencies) before scheduling new ones
+        let allIDs = ["\(notificationPrefix)-daily", "\(notificationPrefix)-weekly"]
+            + (2...6).map { "\(notificationPrefix)-wd\($0)" }
+        center.removePendingNotificationRequests(withIdentifiers: allIDs)
 
         let content = buildContent(links: links)
 
