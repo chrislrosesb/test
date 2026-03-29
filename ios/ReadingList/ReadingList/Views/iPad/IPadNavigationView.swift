@@ -124,6 +124,8 @@ struct IPadReadingPane: View {
     @State private var isInfoMode: Bool = false
     @State private var isFullScreen: Bool = false
     @State private var showDetailInfo: Bool = false
+    @State private var showFinished: Bool = false
+    @AppStorage("libraryViewMode") private var viewMode: String = "cards"
 
     var isDoTab: Bool { statusFilter == "to-try" }
 
@@ -137,12 +139,10 @@ struct IPadReadingPane: View {
                     readerView(link: link, geo: geo)
                 } else if selectedLink == nil {
                     // Nothing selected: full-width view
-                    if isDoTab {
-                        // Do tab: full-width list (cards don't suit tasks)
+                    if isDoTab || viewMode == "list" {
                         IPadArticleList(statusFilter: statusFilter, selectedLink: $selectedLink, isInfoMode: $isInfoMode)
                             .environment(vm).environment(authVM)
                     } else {
-                        // Read / Library: full-width card grid
                         IPadCardGrid(statusFilter: statusFilter, selectedLink: $selectedLink)
                             .environment(vm)
                     }
@@ -158,6 +158,14 @@ struct IPadReadingPane: View {
                 }
             }
             .animation(.spring(duration: 0.38, bounce: 0.05), value: selectedLink == nil)
+            .sheet(isPresented: $showFinished) {
+                if let link = selectedLink {
+                    FinishedReadingSheet(link: link, vm: vm) {
+                        showFinished = false
+                        selectedLink = nil
+                    }
+                }
+            }
         }
     }
 
@@ -189,7 +197,7 @@ struct IPadReadingPane: View {
                     ToolbarItemGroup(placement: .topBarTrailing) {
                         Button {
                             Haptics.success()
-                            Task { await vm.updateStatus(link: link, status: "done") }
+                            showFinished = true
                         } label: {
                             Image(systemName: link.status == "done" ? "checkmark.circle.fill" : "checkmark.circle")
                                 .foregroundStyle(link.status == "done" ? .green : .primary)
@@ -252,6 +260,8 @@ struct IPadCardGrid: View {
         default: return "Library"
         }
     }
+
+    @AppStorage("libraryViewMode") private var viewMode: String = "cards"
 
     // Adaptive: 3 cols on iPad landscape, 2 on portrait, more on large Mac windows
     let columns = [GridItem(.adaptive(minimum: 280, maximum: 380), spacing: 16)]
@@ -337,6 +347,14 @@ struct IPadCardGrid: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    viewMode = "list"
+                } label: {
+                    Image(systemName: "list.bullet")
+                }
+                .help("Switch to list view")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if !vm.categories.isEmpty {
                         Menu {
@@ -389,6 +407,7 @@ struct IPadArticleList: View {
     @State private var isCurating = false
     @State private var curateSelection: Set<String> = []
     @State private var showCurateSheet = false
+    @AppStorage("libraryViewMode") private var viewMode: String = "cards"
 
     var displayedLinks: [Link] {
         var result = vm.allLinks
@@ -512,6 +531,14 @@ struct IPadArticleList: View {
             ArticleDetailView(link: link).environment(vm)
         }
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    viewMode = "cards"
+                } label: {
+                    Image(systemName: "square.grid.2x2")
+                }
+                .help("Switch to card view")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if !vm.categories.isEmpty {
