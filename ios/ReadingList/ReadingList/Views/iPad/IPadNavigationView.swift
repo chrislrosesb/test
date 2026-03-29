@@ -114,7 +114,7 @@ struct IPadNavigationView: View {
     }
 }
 
-// MARK: - Reading pane: article list (left) + reader (right) in an HStack
+// MARK: - Reading pane: full-width card grid → collapses to list+reader on selection
 
 struct IPadReadingPane: View {
     let statusFilter: String?
@@ -122,39 +122,42 @@ struct IPadReadingPane: View {
     @Environment(AuthViewModel.self) private var authVM
     @State private var selectedLink: Link? = nil
     @State private var isInfoMode: Bool = false
-    @State private var isPortrait: Bool = false
     @State private var isFullScreen: Bool = false
     @State private var showDetailInfo: Bool = false
+
+    var isDoTab: Bool { statusFilter == "to-try" }
 
     var body: some View {
         GeometryReader { geo in
             let portrait = geo.size.height > geo.size.width
-            if portrait || (isFullScreen && selectedLink != nil) {
-                // Portrait / fullscreen: show list OR reader
-                if let link = selectedLink {
+
+            Group {
+                if let link = selectedLink, portrait || isFullScreen {
+                    // Portrait or fullscreen: reader fills everything
                     readerView(link: link, geo: geo)
-                } else {
-                    IPadArticleList(statusFilter: statusFilter, selectedLink: $selectedLink, isInfoMode: $isInfoMode)
-                        .environment(vm).environment(authVM)
-                }
-            } else {
-                // Landscape: list on left, reader on right
-                HStack(spacing: 0) {
-                    IPadArticleList(statusFilter: statusFilter, selectedLink: $selectedLink, isInfoMode: $isInfoMode)
-                        .environment(vm).environment(authVM)
-                        .frame(width: min(400, geo.size.width * 0.38))
-                    Divider()
-                    if let link = selectedLink {
-                        readerView(link: link, geo: geo)
+                } else if selectedLink == nil {
+                    // Nothing selected: full-width view
+                    if isDoTab {
+                        // Do tab: full-width list (cards don't suit tasks)
+                        IPadArticleList(statusFilter: statusFilter, selectedLink: $selectedLink, isInfoMode: $isInfoMode)
+                            .environment(vm).environment(authVM)
                     } else {
-                        ContentUnavailableView("Select an article", systemImage: "doc.text",
-                                               description: Text("Choose an article to start reading"))
+                        // Read / Library: full-width card grid
+                        IPadCardGrid(statusFilter: statusFilter, selectedLink: $selectedLink)
+                            .environment(vm)
+                    }
+                } else if let link = selectedLink {
+                    // Landscape + article selected: narrow list on left, reader on right
+                    HStack(spacing: 0) {
+                        IPadArticleList(statusFilter: statusFilter, selectedLink: $selectedLink, isInfoMode: $isInfoMode)
+                            .environment(vm).environment(authVM)
+                            .frame(width: min(400, geo.size.width * 0.38))
+                        Divider()
+                        readerView(link: link, geo: geo)
                     }
                 }
             }
-        }
-        .onChange(of: isPortrait) { _, portrait in
-            if !portrait { isFullScreen = false }
+            .animation(.spring(duration: 0.38, bounce: 0.05), value: selectedLink == nil)
         }
     }
 
@@ -219,6 +222,156 @@ struct IPadReadingPane: View {
                 }
         } else {
             ContentUnavailableView("Invalid URL", systemImage: "link.badge.plus")
+        }
+    }
+}
+
+// MARK: - iPad Card Grid (full-width, shown when no article is selected)
+
+struct IPadCardGrid: View {
+    let statusFilter: String?
+    @Binding var selectedLink: Link?
+
+    @Environment(LibraryViewModel.self) private var vm
+    @State private var isCurating = false
+    @State private var curateSelection: Set<String> = []
+    @State private var showCurateSheet = false
+    @State private var infoLink: Link? = nil
+
+    var displayedLinks: [Link] {
+        var result = vm.allLinks
+        if let sf = statusFilter { result = result.filter { $0.status == sf } }
+        if let category = vm.selectedCategory { result = result.filter { $0.category == category } }
+        if vm.sortByStars { result = result.sorted { ($0.stars ?? 0) > ($1.stars ?? 0) } }
+        return result
+    }
+
+    var navTitle: String {
+        switch statusFilter {
+        case "to-read": return "Read"
+        default: return "Library"
+        }
+    }
+
+    // Adaptive: 3 cols on iPad landscape, 2 on portrait, more on large Mac windows
+    let columns = [GridItem(.adaptive(minimum: 280, maximum: 380), spacing: 16)]
+
+    var body: some View {
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 16) {
+                ForEach(displayedLinks) { link in
+                    ArticleCardView(link: link)
+                        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .onTapGesture {
+                            if isCurating {
+                                if curateSelection.contains(link.id) { curateSelection.remove(link.id) }
+                                else { curateSelection.insert(link.id) }
+                            } else {
+                                Haptics.tap()
+                                selectedLink = link
+                            }
+                        }
+                        .overlay(alignment: .topTrailing) {
+                            if isCurating {
+                                Image(systemName: curateSelection.contains(link.id) ? "checkmark.circle.fill" : "circle")
+                                    .font(.title2)
+                                    .foregroundStyle(curateSelection.contains(link.id) ? Color.accentColor : .white)
+                                    .shadow(color: .black.opacity(0.4), radius: 3)
+                                    .padding(10)
+                            }
+                        }
+                        .contextMenu {
+                            Button { infoLink = link } label: { Label("Info", systemImage: "info.circle") }
+                            Divider()
+                            Button { UIPasteboard.general.string = link.url } label: { Label("Copy URL", systemImage: "doc.on.doc") }
+                            Button { guard let url = URL(string: link.url) else { return }
+                                UIApplication.shared.open(url) } label: { Label("Open in Safari", systemImage: "safari") }
+                            Divider()
+                            Button { Task { await vm.updateStatus(link: link, status: "to-read") } } label: { Label("To Read", systemImage: "book") }
+                            Button { Task { await vm.updateStatus(link: link, status: "to-try") } } label: { Label("To Do", systemImage: "hammer") }
+                            Button { Task { await vm.updateStatus(link: link, status: "done") } } label: { Label("Done", systemImage: "checkmark.circle") }
+                            Divider()
+                            Button(role: .destructive) { Task { await vm.delete(link: link) } } label: { Label("Delete", systemImage: "trash") }
+                        }
+                }
+            }
+            .padding(20)
+        }
+        .navigationTitle(navTitle)
+        .navigationBarTitleDisplayMode(.large)
+        .refreshable { await vm.refresh() }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let progress = vm.enrichAllProgress {
+                HStack(spacing: 12) {
+                    ProgressView().scaleEffect(0.8)
+                    Text("Enriching \(progress.current) of \(progress.total)…").font(.subheadline)
+                    Spacer()
+                }
+                .padding(.horizontal, 20).padding(.vertical, 12)
+                .background(.regularMaterial)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if isCurating {
+                HStack {
+                    Button("Cancel") { withAnimation { isCurating = false; curateSelection.removeAll() } }
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(curateSelection.count) selected").font(.subheadline).fontWeight(.medium)
+                    Spacer()
+                    Button("Create Link") { showCurateSheet = true }
+                        .fontWeight(.semibold).disabled(curateSelection.isEmpty)
+                }
+                .padding(.horizontal, 20).padding(.vertical, 12)
+                .background(.regularMaterial)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(duration: 0.3), value: vm.enrichAllProgress != nil || isCurating)
+        .sheet(isPresented: $showCurateSheet) {
+            CurateSheetView(selectedLinks: displayedLinks.filter { curateSelection.contains($0.id) }) {
+                isCurating = false; curateSelection.removeAll()
+            }
+            .environment(vm)
+        }
+        .sheet(item: $infoLink) { link in
+            ArticleDetailView(link: link).environment(vm)
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    if !vm.categories.isEmpty {
+                        Menu {
+                            Button { vm.selectedCategory = nil } label: {
+                                Label("All", systemImage: vm.selectedCategory == nil ? "checkmark" : "tray.full")
+                            }
+                            ForEach(vm.categories) { cat in
+                                Button { vm.selectedCategory = cat.name } label: {
+                                    Label { Text(cat.name) } icon: {
+                                        if vm.selectedCategory == cat.name { Image(systemName: "checkmark") }
+                                    }
+                                }
+                            }
+                        } label: { Label(vm.selectedCategory ?? "Category", systemImage: "folder") }
+                    }
+                    Section("Sort") {
+                        Button { vm.sortByStars = false } label: { Label("Newest", systemImage: vm.sortByStars ? "clock" : "checkmark") }
+                        Button { vm.sortByStars = true } label: { Label("Top Rated", systemImage: vm.sortByStars ? "checkmark" : "star.fill") }
+                    }
+                    Section {
+                        Button { withAnimation { isCurating = true; curateSelection.removeAll() } } label: {
+                            Label("Curate Collection", systemImage: "rectangle.stack.badge.plus")
+                        }
+                        if #available(iOS 26, *) {
+                            Button { Task { await vm.enrichAll() } } label: {
+                                let count = vm.unenrichedLinks.count
+                                Label(count > 0 ? "Enrich All (\(count))" : "All Enriched", systemImage: "sparkles")
+                            }
+                            .disabled(vm.unenrichedLinks.isEmpty || vm.isEnrichingAll)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                }
+            }
         }
     }
 }
