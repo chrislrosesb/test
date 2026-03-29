@@ -534,6 +534,7 @@ struct IPadArticleList: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     viewMode = "cards"
+                    selectedLink = nil
                 } label: {
                     Image(systemName: "square.grid.2x2")
                 }
