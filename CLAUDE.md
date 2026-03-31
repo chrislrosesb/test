@@ -113,8 +113,37 @@ All pages have OG + Twitter Card meta tags. `og-image.png` + `og-reading-list.pn
 - **`SupabaseClient.shared`** — raw URLSession + JSONDecoder, no SDK
 - **`SubtaskStore.shared`** — Supabase-backed subtasks (syncs across devices)
 - **`ArticleFullTextStore`** — SwiftData on-device only, never goes to Supabase
-- Tabs: **Read → Do → Library → Search** (default: Read)
+- Tabs: **Read → Do → Library → Discover** (default: Read)
 - iPhone: `TabView`. iPad/Mac: `NavigationSplitView` (`IPadNavigationView`)
+
+### Navigation & UI Layout
+
+#### iPhone
+| Location | Contents |
+|---|---|
+| Tab bar | Read · Do · Library · Discover |
+| Top-left (all tabs) | Hamburger menu (≡) |
+| Top-right (all tabs) | Grid/List toggle · Search · Enrich ✦ (conditional, iOS 26+) |
+| Hamburger menu | **Intelligence:** Today's Reading, Library Insights, Notes Review, Knowledge Synthesis, Sources · **Filter:** Category submenu, Tags (opens tag cloud sheet), Sort · **Actions:** Curate Collection · **Account:** Profile · Clear All Filters (when active) |
+| Discover tab | Hub: Library Insights · Notes Review · Knowledge Synthesis · Sources |
+
+#### iPad / Mac (NavigationSplitView)
+| Location | Contents |
+|---|---|
+| Sidebar — Reading | Read · Do · Library |
+| Sidebar — Discover | Sources · Insights · Notes Review · Knowledge Synthesis · Search |
+| Sidebar — Other | Profile · Stats (Read/Do/Done counts) |
+| Card grid toolbar | Left: filter menu · Right: list toggle, Enrich ✦ (conditional) |
+| Article list toolbar (no article open) | Left: filter menu · Right: card toggle, Enrich ✦ (conditional) |
+| Article list toolbar (article open) | Left: filter menu only — reader owns the right side |
+| Reader toolbar | Done ✓ · Info ⓘ (toggles metadata/reader swap) · Share ↗ (Copy URL, Open in Safari) · Fullscreen ↔ |
+| Filter menu (both views) | Category submenu · Tags (opens tag cloud sheet) · Sort · Curate Collection · Clear All Filters (when active) |
+
+**Key design rule:** When an article is open in split view, the list panel shows only its filter menu. The reader panel owns all article-level actions. No button appears twice.
+
+**Info mode:** Tapping ⓘ in the reader toolbar swaps the web view for `ArticleDetailView` (full metadata). Tap again to return to web view. Controlled by `isInfoMode` state in `IPadReadingPane`.
+
+**Enrich All:** Only visible as a `✦ sparkles` toolbar button when `vm.unenrichedLinks.count > 0 && !vm.isEnrichingAll` (iOS 26+ only). Not shown in any menu.
 
 ### Key File Structure
 ```
@@ -133,10 +162,10 @@ ios/ReadingList/ReadingList/
 │   ├── Notes/       NotesReviewView
 │   ├── Knowledge/   KnowledgeSynthesisView
 │   ├── Sources/     SourcesView
-│   ├── Discover/    DiscoverSimilarView
+│   ├── Discover/    DiscoverView (hub), DiscoverSimilarView (from Notes Review)
 │   ├── Profile/     ProfileView
 │   ├── Auth/        SignInView
-│   └── iPad/        IPadNavigationView
+│   └── iPad/        IPadNavigationView (IPadReadingPane, IPadCardGrid, IPadArticleList)
 ├── Helpers/         ArticleExtractor, ArticleDigestEngine, DigestNotificationManager,
 │                    CachedAsyncImage, StatusHelpers, BounceStyle (+Haptics), Color+Hex
 └── Supabase/        SupabaseClient.swift, NewsAPIConfig.swift (Discover Similar)
@@ -145,13 +174,13 @@ ios/ReadingList/ReadingList/
 ### AI Features Summary
 | Feature | Entry Point | AI Context Used |
 |---------|-------------|-----------------|
-| Daily Digest | Toolbar → "Today's Reading" | Last 24h articles + digests/summaries |
-| Library Insights | Toolbar → "Library Insights" | Pre-aggregated stats only |
-| Notes Review | Toolbar → "Notes Review" | Notes + titles + digests |
-| Knowledge Synthesis | Toolbar → "Knowledge Synthesis" | Top 12 relevant articles |
+| Daily Digest | Hamburger menu → "Today's Reading" | Last 24h articles + digests/summaries |
+| Library Insights | Hamburger menu or Discover tab | Pre-aggregated stats only |
+| Notes Review | Hamburger menu or Discover tab | Notes + titles + digests |
+| Knowledge Synthesis | Hamburger menu or Discover tab | Top 12 relevant articles |
 | Discover Similar | From Notes Review recap | NewsAPI + AI curation |
-| Enrich / Enrich All | Toolbar → "Enrich All" | Single article metadata |
-| Curate AI Summary | Curate sheet | Article digests/summaries |
+| Enrich All | Sparkles ✦ toolbar button (when unenriched articles exist, iOS 26+) | Single article metadata |
+| Curate AI Summary | Curate Collection (hamburger/filter menu) | Article digests/summaries |
 
 **Full text context pattern:** `if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty { use digest } else { use summary/note }`
 
@@ -164,10 +193,10 @@ ios/ReadingList/ReadingList/
 - **PBXFileSystemSynchronizedRootGroup:** New `.swift` files in the correct folder are auto-included — no need to edit `project.pbxproj`.
 - **iOS 26 Form buttons:** Must use `.buttonStyle(.plain)` on Cancel/Save buttons inside `Form`/`List` sections or they won't fire reliably. Use `@FocusState` to dismiss `TextEditor` focus before saving.
 - **`ArticleDetailView` is Form-based** (not ScrollView): title, status/category, stars, tags, AI summary, note. Tap-to-edit inline pattern throughout.
-- **`EnrichSheetView` is dead code:** Not presented by any view. Single-article enrich needs re-wiring. Enrich All still works via LibraryView toolbar.
+- **`EnrichSheetView` is dead code:** Not presented by any view. Single-article enrich needs re-wiring.
 - **Subtask sync:** `subtasks` table must exist in Supabase with RLS policies allowing public CRUD.
 - **`recipients` / `recipient_batches` tables** must be created manually in Supabase SQL editor if not done yet. If `createRecipient` or `createBatch` fails, check Xcode console for ❌ error lines.
 - **Mac app distribution:** Without $99/yr Apple Developer account, build from Xcode + copy to `/Applications` manually. Free certs expire every 7 days.
 - **NewsAPI key** in `NewsAPIConfig.swift` is hardcoded in source (free tier, 100 req/day). Low risk but visible in public repo.
 
-*Last updated: 2026-03-27 by Claude Code*
+*Last updated: 2026-03-30 by Claude Code*
