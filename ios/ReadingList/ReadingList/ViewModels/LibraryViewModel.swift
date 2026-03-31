@@ -104,21 +104,25 @@ final class LibraryViewModel {
         }.joined(separator: "\n\n")
     }
 
-    /// Context for the podcast digest: last 7 days, fallback to most recent 10 articles.
+    /// Context for the podcast digest: last 7 days (max 6 articles), fallback to most recent 6.
+    /// Kept short to fit the on-device FoundationModels context window — max ~300 chars per article.
     var podcastContext: String {
         let weekCutoff = Date().addingTimeInterval(-7 * 86400)
-        let weekLinks = allLinks.filter { ($0.savedAt ?? .distantPast) >= weekCutoff }.prefix(12)
-        let source: [Link] = weekLinks.isEmpty ? Array(allLinks.prefix(10)) : Array(weekLinks)
+        let weekLinks = allLinks.filter { ($0.savedAt ?? .distantPast) >= weekCutoff }.prefix(6)
+        let source: [Link] = weekLinks.isEmpty ? Array(allLinks.prefix(6)) : Array(weekLinks)
         guard !source.isEmpty else { return "" }
         return source.enumerated().map { i, link in
             var parts = "\(i + 1). \"\(link.title ?? link.url)\" (\(link.domain ?? "unknown"))"
-            if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty {
-                parts += "\n   \(ft.digest)"
-            } else if let summary = link.summary, !summary.isEmpty {
-                parts += "\n   \(summary)"
-            } else if let note = link.note, !note.isEmpty {
-                parts += "\n   My note: \(note)"
-            }
+            // Pick the richest short blurb available, capped at 300 chars
+            let blurb: String? = {
+                if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty {
+                    return String(ft.digest.prefix(300))
+                }
+                if let s = link.summary, !s.isEmpty { return String(s.prefix(300)) }
+                if let n = link.note, !n.isEmpty { return "My note: \(String(n.prefix(200)))" }
+                return nil
+            }()
+            if let blurb { parts += "\n   \(blurb)" }
             return parts
         }.joined(separator: "\n\n")
     }

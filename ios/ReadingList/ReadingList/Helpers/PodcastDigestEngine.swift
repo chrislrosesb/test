@@ -110,28 +110,21 @@ final class PodcastDigestEngine: NSObject {
     @available(iOS 26, *)
     private func generateScript(context: String) async {
         #if canImport(FoundationModels)
+        // Cap context to ~1200 chars to stay well within the on-device model's context window
+        let trimmedContext = String(context.prefix(1200))
         let prompt = """
-        You are writing a script for "The Backlog" — a casual, irreverent two-host podcast in the style of Diggnation (Kevin Rose and Alex Albrecht). Two friends who genuinely love this stuff but don't take themselves seriously.
+        Write a casual two-host podcast script about these saved articles. Hosts: KAI (explains, nerdy, "Ok so here's the thing—") and DEV (reacts big, "Wait wait wait", "Oh dude"). Like two friends on a couch, short punchy lines under 20 words, occasional dry humor, em-dash for interruptions.
 
-        The hosts:
-        KAI — the knowledgeable one. Explains things, makes connections, occasionally nerds out. Phrases: "Ok so here's the thing—", "What I find interesting is", "This actually connects to", "No but think about it—"
+        Articles:
+        \(trimmedContext)
 
-        DEV — the enthusiast. Reacts big, asks obvious questions, brings energy, goes on tangents. Phrases: "Wait wait wait", "Oh dude", "No that's actually wild", "Ok but WHY though", "Hang on—"
-
-        Vibe: Two friends podcasting from a couch. They interrupt each other using em-dash (—). They agree and then build. Occasional dry humor. No corporate speak. Short punchy lines — under 25 words each.
-
-        Here are the articles from the reading list this week:
-
-        \(context)
-
-        SCRIPT RULES:
-        - Format every line as exactly: [KAI] text OR [DEV] text — nothing else, no blank lines between exchanges
-        - 18–24 exchanges total
-        - Open with one line of light banter completely unrelated to the articles (inside joke feel)
-        - Cover the 3 most interesting articles with real back-and-forth on each
-        - ONE moment where DEV completely misunderstands an article concept and KAI corrects them with mock exasperation
-        - End: KAI gives a "if you read ONE thing this week" pick, DEV disagrees with a hot take
-        - No asterisks, no parentheticals, no stage directions, no markdown — dialogue text only
+        Rules:
+        - Each line: [KAI] text OR [DEV] text, no blank lines
+        - 16–20 exchanges
+        - One brief off-topic opener
+        - DEV misunderstands something, KAI corrects with exasperation
+        - End with KAI's top pick and DEV's hot take disagreement
+        - Plain dialogue only, no stage directions
         """
 
         do {
@@ -148,6 +141,8 @@ final class PodcastDigestEngine: NSObject {
             let desc = error.localizedDescription.lowercased()
             if desc.contains("available") || desc.contains("support") || desc.contains("intelligence") {
                 phase = .unavailable("Apple Intelligence is not available on this device.")
+            } else if desc.contains("context") || desc.contains("length") || desc.contains("token") {
+                phase = .error("Content too long for on-device AI. Try again — it uses fewer articles each time.")
             } else {
                 phase = .error(error.localizedDescription)
             }
