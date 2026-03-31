@@ -169,47 +169,47 @@ struct IPadReadingPane: View {
     }
 
     @ViewBuilder
+    func readerLeadingButton(portrait: Bool) -> some View {
+        if portrait || isFullScreen {
+            Button {
+                if isFullScreen && !portrait { isFullScreen = false }
+                else { selectedLink = nil }
+            } label: { Image(systemName: "chevron.left") }
+        }
+    }
+
+    @ViewBuilder
+    func readerTrailingButtons(link: Link, portrait: Bool) -> some View {
+        Button {
+            Haptics.success()
+            showFinished = true
+        } label: {
+            Image(systemName: link.status == "done" ? "checkmark.circle.fill" : "checkmark.circle")
+                .foregroundStyle(link.status == "done" ? .green : .primary)
+        }
+        .help("Mark as done (⇧⌘D)")
+        .keyboardShortcut("d", modifiers: [.command, .shift])
+
+        Button { withAnimation { isInfoMode.toggle() } } label: {
+            Image(systemName: isInfoMode ? "info.circle.fill" : "info.circle")
+                .foregroundStyle(isInfoMode ? Color.accentColor : .primary)
+        }
+        .help(isInfoMode ? "Exit info mode" : "Article info")
+
+        if !portrait {
+            Button { isFullScreen.toggle() } label: {
+                Image(systemName: isFullScreen
+                      ? "arrow.down.right.and.arrow.up.left"
+                      : "arrow.up.left.and.arrow.down.right")
+            }
+            .help(isFullScreen ? "Exit full screen" : "Full screen")
+            .keyboardShortcut("f", modifiers: [.command, .shift])
+        }
+    }
+
+    @ViewBuilder
     func readerView(link: Link, geo: GeometryProxy) -> some View {
         let portrait = geo.size.height > geo.size.width
-
-        // Shared back/fullscreen leading button
-        @ViewBuilder func leadingButton() -> some View {
-            if portrait || isFullScreen {
-                Button {
-                    if isFullScreen && !portrait { isFullScreen = false }
-                    else { selectedLink = nil }
-                } label: { Image(systemName: "chevron.left") }
-            }
-        }
-
-        // Shared done + fullscreen trailing buttons
-        @ViewBuilder func sharedTrailing() -> some View {
-            Button {
-                Haptics.success()
-                showFinished = true
-            } label: {
-                Image(systemName: link.status == "done" ? "checkmark.circle.fill" : "checkmark.circle")
-                    .foregroundStyle(link.status == "done" ? .green : .primary)
-            }
-            .help("Mark as done (⇧⌘D)")
-            .keyboardShortcut("d", modifiers: [.command, .shift])
-
-            Button { withAnimation { isInfoMode.toggle() } } label: {
-                Image(systemName: isInfoMode ? "info.circle.fill" : "info.circle")
-                    .foregroundStyle(isInfoMode ? Color.accentColor : .primary)
-            }
-            .help(isInfoMode ? "Exit info mode" : "Article info")
-
-            if !portrait {
-                Button { isFullScreen.toggle() } label: {
-                    Image(systemName: isFullScreen
-                          ? "arrow.down.right.and.arrow.up.left"
-                          : "arrow.up.left.and.arrow.down.right")
-                }
-                .help(isFullScreen ? "Exit full screen" : "Full screen")
-                .keyboardShortcut("f", modifiers: [.command, .shift])
-            }
-        }
 
         if isInfoMode {
             ArticleDetailView(link: link)
@@ -218,8 +218,12 @@ struct IPadReadingPane: View {
                 .navigationTitle(link.title ?? link.domain ?? "Article")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .topBarLeading) { leadingButton() }
-                    ToolbarItemGroup(placement: .topBarTrailing) { sharedTrailing() }
+                    ToolbarItem(placement: .topBarLeading) {
+                        readerLeadingButton(portrait: portrait)
+                    }
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        readerTrailingButtons(link: link, portrait: portrait)
+                    }
                 }
         } else if let url = URL(string: link.url) {
             WebView(url: url)
@@ -228,9 +232,11 @@ struct IPadReadingPane: View {
                 .navigationTitle(link.title ?? link.domain ?? "Article")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .topBarLeading) { leadingButton() }
+                    ToolbarItem(placement: .topBarLeading) {
+                        readerLeadingButton(portrait: portrait)
+                    }
                     ToolbarItemGroup(placement: .topBarTrailing) {
-                        sharedTrailing()
+                        readerTrailingButtons(link: link, portrait: portrait)
                         Menu {
                             Button {
                                 UIPasteboard.general.string = link.url
