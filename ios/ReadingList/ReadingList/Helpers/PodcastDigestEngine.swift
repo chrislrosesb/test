@@ -152,7 +152,7 @@ final class PodcastDigestEngine: NSObject {
         do {
             let session = LanguageModelSession(instructions: instructions)
             let result = try await session.respond(to: prompt, generating: PodcastScript.self)
-            let lines: [PodcastLine] = result.lines.compactMap { line in
+            let lines: [PodcastLine] = result.content.lines.compactMap { line in
                 switch line.speaker.uppercased().trimmingCharacters(in: .whitespaces) {
                 case "KAI": return PodcastLine(speaker: .kai, text: line.text)
                 case "DEV": return PodcastLine(speaker: .dev, text: line.text)
