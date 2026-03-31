@@ -48,16 +48,16 @@ enum PodcastPhase {
 @available(iOS 26, *)
 @Generable
 struct PodcastScript {
-    @Guide("Between 12 and 16 dialogue lines, alternating between KAI and DEV")
+    @Guide(description: "Between 12 and 16 dialogue lines, alternating between KAI and DEV")
     var lines: [ScriptLine]
 }
 
 @available(iOS 26, *)
 @Generable
 struct ScriptLine {
-    @Guide("The speaker. Must be exactly KAI or DEV.")
+    @Guide(description: "The speaker. Must be exactly KAI or DEV.")
     var speaker: String
-    @Guide("What they say. Casual, under 18 words. No stage directions.")
+    @Guide(description: "What they say. Casual, under 18 words. No stage directions.")
     var text: String
 }
 #endif
