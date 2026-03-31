@@ -8,6 +8,7 @@ enum SidebarItem: String, Hashable, CaseIterable {
     case insights = "Insights"
     case notes = "Notes"
     case knowledge = "Knowledge"
+    case podcast = "Audio Briefing"
     case search = "Search"
     case profile = "Profile"
 
@@ -20,6 +21,7 @@ enum SidebarItem: String, Hashable, CaseIterable {
         case .insights: return "chart.bar.xaxis.ascending.badge.clock"
         case .notes: return "note.text"
         case .knowledge: return "brain"
+        case .podcast: return "waveform.and.mic"
         case .search: return "magnifyingglass"
         case .profile: return "person.circle"
         }
@@ -58,6 +60,7 @@ struct IPadNavigationView: View {
                 Label("Insights", systemImage: "chart.bar.xaxis.ascending.badge.clock").tag(SidebarItem.insights)
                 Label("Notes Review", systemImage: "note.text").tag(SidebarItem.notes)
                 Label("Knowledge Synthesis", systemImage: "brain").tag(SidebarItem.knowledge)
+                Label("Audio Briefing", systemImage: "waveform.and.mic").tag(SidebarItem.podcast)
                 Label("Search", systemImage: "magnifyingglass").tag(SidebarItem.search)
             }
             Section {
@@ -103,6 +106,8 @@ struct IPadNavigationView: View {
             NotesReviewView().environment(vm)
         case .knowledge:
             KnowledgeSynthesisView().environment(vm)
+        case .podcast:
+            PodcastDigestView().environment(vm)
         case .search:
             SearchView().environment(vm)
         case .profile:

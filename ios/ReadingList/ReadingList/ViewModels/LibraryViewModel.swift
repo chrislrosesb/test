@@ -104,6 +104,25 @@ final class LibraryViewModel {
         }.joined(separator: "\n\n")
     }
 
+    /// Context for the podcast digest: last 7 days, fallback to most recent 10 articles.
+    var podcastContext: String {
+        let weekCutoff = Date().addingTimeInterval(-7 * 86400)
+        let weekLinks = allLinks.filter { ($0.savedAt ?? .distantPast) >= weekCutoff }.prefix(12)
+        let source: [Link] = weekLinks.isEmpty ? Array(allLinks.prefix(10)) : Array(weekLinks)
+        guard !source.isEmpty else { return "" }
+        return source.enumerated().map { i, link in
+            var parts = "\(i + 1). \"\(link.title ?? link.url)\" (\(link.domain ?? "unknown"))"
+            if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty {
+                parts += "\n   \(ft.digest)"
+            } else if let summary = link.summary, !summary.isEmpty {
+                parts += "\n   \(summary)"
+            } else if let note = link.note, !note.isEmpty {
+                parts += "\n   My note: \(note)"
+            }
+            return parts
+        }.joined(separator: "\n\n")
+    }
+
     /// Compact pre-aggregated stats string for the Insights prompt.
     var libraryStatsContext: String {
         let total = allLinks.count
