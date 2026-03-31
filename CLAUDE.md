@@ -124,14 +124,14 @@ All pages have OG + Twitter Card meta tags. `og-image.png` + `og-reading-list.pn
 | Tab bar | Read · Do · Library · Discover |
 | Top-left (all tabs) | Hamburger menu (≡) |
 | Top-right (all tabs) | Grid/List toggle · Search · Enrich ✦ (conditional, iOS 26+) |
-| Hamburger menu | **Intelligence:** Today's Reading, Library Insights, Notes Review, Knowledge Synthesis, Sources · **Filter:** Category submenu, Tags (opens tag cloud sheet), Sort · **Actions:** Curate Collection · **Account:** Profile · Clear All Filters (when active) |
+| Hamburger menu | **Intelligence:** Today's Reading, Audio Briefing, Library Insights, Notes Review, Knowledge Synthesis, Sources · **Filter:** Category submenu, Tags (opens tag cloud sheet), Sort · **Actions:** Curate Collection · **Account:** Profile · Clear All Filters (when active) |
 | Discover tab | Hub: Library Insights · Notes Review · Knowledge Synthesis · Sources |
 
 #### iPad / Mac (NavigationSplitView)
 | Location | Contents |
 |---|---|
 | Sidebar — Reading | Read · Do · Library |
-| Sidebar — Discover | Sources · Insights · Notes Review · Knowledge Synthesis · Search |
+| Sidebar — Discover | Sources · Insights · Notes Review · Knowledge Synthesis · Audio Briefing · Search |
 | Sidebar — Other | Profile · Stats (Read/Do/Done counts) |
 | Card grid toolbar | Left: filter menu · Right: list toggle, Enrich ✦ (conditional) |
 | Article list toolbar (no article open) | Left: filter menu · Right: card toggle, Enrich ✦ (conditional) |
@@ -157,7 +157,7 @@ ios/ReadingList/ReadingList/
 │   ├── Detail/      ArticleDetailView, EnrichSheetView (dead code)
 │   ├── Reader/      ArticleReaderContainer, WebReaderView, FinishedReadingSheet
 │   ├── Search/      SearchView
-│   ├── Digest/      DigestView
+│   ├── Digest/      DigestView, PodcastDigestView
 │   ├── Insights/    LibraryInsightsView
 │   ├── Notes/       NotesReviewView
 │   ├── Knowledge/   KnowledgeSynthesisView
@@ -166,8 +166,9 @@ ios/ReadingList/ReadingList/
 │   ├── Profile/     ProfileView
 │   ├── Auth/        SignInView
 │   └── iPad/        IPadNavigationView (IPadReadingPane, IPadCardGrid, IPadArticleList)
-├── Helpers/         ArticleExtractor, ArticleDigestEngine, DigestNotificationManager,
-│                    CachedAsyncImage, StatusHelpers, BounceStyle (+Haptics), Color+Hex
+├── Helpers/         ArticleExtractor, ArticleDigestEngine, PodcastDigestEngine,
+│                    DigestNotificationManager, CachedAsyncImage, StatusHelpers,
+│                    BounceStyle (+Haptics), Color+Hex
 └── Supabase/        SupabaseClient.swift, NewsAPIConfig.swift (Discover Similar)
 ```
 
@@ -175,6 +176,7 @@ ios/ReadingList/ReadingList/
 | Feature | Entry Point | AI Context Used |
 |---------|-------------|-----------------|
 | Daily Digest | Hamburger menu → "Today's Reading" | Last 24h articles + digests/summaries |
+| Audio Briefing | Hamburger menu or iPad sidebar | Last 7 days articles (digest-first, summary fallback) |
 | Library Insights | Hamburger menu or Discover tab | Pre-aggregated stats only |
 | Notes Review | Hamburger menu or Discover tab | Notes + titles + digests |
 | Knowledge Synthesis | Hamburger menu or Discover tab | Top 12 relevant articles |
@@ -184,8 +186,41 @@ ios/ReadingList/ReadingList/
 
 **Full text context pattern:** `if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty { use digest } else { use summary/note }`
 
+### Full Text / Digest Pipeline — CRITICAL to understand
+
+There are **two separate enrichment levels** that are often confused:
+
+**Level 1 — "Enrich All" ✦ (Supabase fields, lightweight)**
+- Triggered by: ✦ sparkles toolbar button on any article without a summary/note
+- What it does: Uses `EnrichEngine` → FoundationModels → writes `summary` (2-3 sentences), `tags`, `category`, `status` back to Supabase
+- What it does NOT do: Never fetches full article text. Never touches `ArticleFullTextStore`.
+- Source material: Only the article's existing `title`, `description`, `url` (OG metadata)
+
+**Level 2 — "Save Full Text" / Deep Save (SwiftData, on-device only)**
+- Triggered by exactly THREE things in `ArticleDetailView.performDeepSave()`:
+  1. User taps "Save Full Text" button in the Full Text section of detail view
+  2. User rates an article **5 stars** (auto-triggers if not already saved)
+  3. User saves a **note** for the first time (auto-triggers if not already saved)
+- What it does: `ArticleExtractor` fetches full page text via hidden WKWebView → `ArticleDigestEngine` generates a rich 150-200 word digest → saved to `ArticleFullTextStore` (SwiftData, never Supabase)
+- Result: `ArticleFullText` with `rawText` (up to 15K chars) + `digest` (150-200 words)
+
+**Implication for AI features:** Most articles only have a short Supabase `summary`. Only articles you've rated 5★, noted, or manually deep-saved have the rich `digest`. When building AI context, always check `ArticleFullTextStore` first and fall back to `summary` — never assume a digest exists.
+
+**Best podcast/AI source articles:** Filter for articles where `ArticleFullTextStore.shared.fetch(linkId:) != nil` — these have real content to discuss. Articles with only a Supabase summary give the LLM very little to work with.
+
 ### AI Rule — ALWAYS USE FOUNDATION MODELS
 **Never use external AI APIs (Claude API, OpenAI, etc.) in the iOS app.** All generative AI uses `LanguageModelSession` from `FoundationModels`. Always gate with `if #available(iOS 26, *)` and provide a graceful fallback. Never dump raw data sets — always pre-aggregate context.
+
+**Exception under consideration:** Audio Briefing (`PodcastDigestEngine`) may optionally support external APIs (Gemini, Google Cloud TTS) for better voice quality and larger context window. If implemented, API keys must be stored in app settings, never hardcoded. On-device FoundationModels remains the default/offline fallback.
+
+### FoundationModels Context Window Limits
+The on-device model has a small context window (~4K tokens total including prompt + response). Hard limits enforced in each feature:
+- `podcastContext`: 4 articles max, ~100 chars per blurb, 600 char total cap, then `prefix(600)` in engine
+- `todaysSavedContext`: 20 articles max with digests/summaries
+- `notesContext`: 20 articles max
+- `@Guide` macro requires `description:` named label — `@Guide(description: "...")` not `@Guide("...")`
+- `session.respond(to:generating:)` returns `Response<T>` — access value via `.content`, not directly
+- `@Generable` structs must be defined at file scope (not nested), inside `#if canImport(FoundationModels)`
 
 ### Known Issues / Gotchas
 - **`Link` name conflict:** Clashes with `SwiftUI.Link<Label>` in SourceKit single-file analysis → shows IDE errors but builds fine. Do not rename the model.
@@ -199,4 +234,4 @@ ios/ReadingList/ReadingList/
 - **Mac app distribution:** Without $99/yr Apple Developer account, build from Xcode + copy to `/Applications` manually. Free certs expire every 7 days.
 - **NewsAPI key** in `NewsAPIConfig.swift` is hardcoded in source (free tier, 100 req/day). Low risk but visible in public repo.
 
-*Last updated: 2026-03-30 by Claude Code*
+*Last updated: 2026-03-31 by Claude Code*
