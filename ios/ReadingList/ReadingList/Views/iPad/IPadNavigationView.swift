@@ -377,55 +377,11 @@ struct IPadCardGrid: View {
             TagCloudView(tagCounts: vm.tagCounts) { tag in vm.selectedTag = tag }
         }
         .toolbar {
-            // Leading: filter+sort menu (sits right next to the sidebar toggle)
+            // Leading: filter menu (category · tags · sort · curate · clear)
             ToolbarItem(placement: .topBarLeading) {
-                Menu {
-                    if !vm.categories.isEmpty {
-                        Menu {
-                            Button { vm.selectedCategory = nil } label: {
-                                Label("All", systemImage: vm.selectedCategory == nil ? "checkmark" : "tray.full")
-                            }
-                            ForEach(vm.categories) { cat in
-                                Button { vm.selectedCategory = cat.name } label: {
-                                    Label { Text(cat.name) } icon: {
-                                        if vm.selectedCategory == cat.name { Image(systemName: "checkmark") }
-                                    }
-                                }
-                            }
-                        } label: { Label(vm.selectedCategory ?? "Category", systemImage: "folder") }
-                    }
-                    Section("Sort") {
-                        Button { vm.sortByStars = false } label: { Label("Newest", systemImage: vm.sortByStars ? "clock" : "checkmark") }
-                        Button { vm.sortByStars = true } label: { Label("Top Rated", systemImage: vm.sortByStars ? "checkmark" : "star.fill") }
-                    }
-                    Section {
-                        Button { withAnimation { isCurating = true; curateSelection.removeAll() } } label: {
-                            Label("Curate Collection", systemImage: "rectangle.stack.badge.plus")
-                        }
-                    }
-                    if vm.selectedCategory != nil || vm.selectedTag != nil || vm.sortByStars {
-                        Section {
-                            Button(role: .destructive) { vm.selectedCategory = nil; vm.selectedTag = nil; vm.sortByStars = false } label: {
-                                Label("Clear All Filters", systemImage: "xmark.circle")
-                            }
-                        }
-                    }
-                } label: {
-                    Image(systemName: hasActiveFilters
-                          ? "line.3.horizontal.decrease.circle.fill"
-                          : "line.3.horizontal.decrease.circle")
-                        .foregroundStyle(hasActiveFilters ? Color.accentColor : .primary)
-                }
-                .help("Filter & Sort")
+                filterMenu
             }
-            // Trailing: enrich (when needed) · tags · list toggle
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showTagCloud = true } label: {
-                    Image(systemName: vm.selectedTag != nil ? "tag.fill" : "tag")
-                        .foregroundStyle(vm.selectedTag != nil ? Color.accentColor : .primary)
-                }
-                .help(vm.selectedTag != nil ? "Tag: \(vm.selectedTag!)" : "Filter by tag")
-            }
+            // Trailing: list toggle · enrich (conditional)
             ToolbarItem(placement: .topBarTrailing) {
                 Button { viewMode = "list" } label: { Image(systemName: "list.bullet") }
                     .help("Switch to list view")
@@ -441,6 +397,51 @@ struct IPadCardGrid: View {
                 }
             }
         }
+    }
+
+    var filterMenu: some View {
+        Menu {
+            if !vm.categories.isEmpty {
+                Menu {
+                    Button { vm.selectedCategory = nil } label: {
+                        Label("All", systemImage: vm.selectedCategory == nil ? "checkmark" : "tray.full")
+                    }
+                    ForEach(vm.categories) { cat in
+                        Button { vm.selectedCategory = cat.name } label: {
+                            Label { Text(cat.name) } icon: {
+                                if vm.selectedCategory == cat.name { Image(systemName: "checkmark") }
+                            }
+                        }
+                    }
+                } label: { Label(vm.selectedCategory ?? "Category", systemImage: "folder") }
+            }
+            Button { showTagCloud = true } label: {
+                Label(vm.selectedTag != nil ? "Tag: \(vm.selectedTag!)" : "Tags",
+                      systemImage: vm.selectedTag != nil ? "tag.fill" : "tag")
+            }
+            Section("Sort") {
+                Button { vm.sortByStars = false } label: { Label("Newest", systemImage: vm.sortByStars ? "clock" : "checkmark") }
+                Button { vm.sortByStars = true } label: { Label("Top Rated", systemImage: vm.sortByStars ? "checkmark" : "star.fill") }
+            }
+            Section {
+                Button { withAnimation { isCurating = true; curateSelection.removeAll() } } label: {
+                    Label("Curate Collection", systemImage: "rectangle.stack.badge.plus")
+                }
+            }
+            if hasActiveFilters {
+                Section {
+                    Button(role: .destructive) {
+                        vm.selectedCategory = nil; vm.selectedTag = nil; vm.sortByStars = false
+                    } label: { Label("Clear All Filters", systemImage: "xmark.circle") }
+                }
+            }
+        } label: {
+            Image(systemName: hasActiveFilters
+                  ? "line.3.horizontal.decrease.circle.fill"
+                  : "line.3.horizontal.decrease.circle")
+                .foregroundStyle(hasActiveFilters ? Color.accentColor : .primary)
+        }
+        .help("Filter & Sort")
     }
 }
 
@@ -588,79 +589,75 @@ struct IPadArticleList: View {
             TagCloudView(tagCounts: vm.tagCounts) { tag in vm.selectedTag = tag }
         }
         .toolbar {
-            // Leading: filter+sort menu (next to sidebar toggle)
+            // Leading: filter menu — always visible
             ToolbarItem(placement: .topBarLeading) {
-                Menu {
-                    if !vm.categories.isEmpty {
-                        Menu {
-                            Button { vm.selectedCategory = nil } label: {
-                                Label("All", systemImage: vm.selectedCategory == nil ? "checkmark" : "tray.full")
+                listFilterMenu
+            }
+            // Trailing: card toggle + enrich — hidden when article is open (reader owns that space)
+            if selectedLink == nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { viewMode = "cards"; selectedLink = nil } label: {
+                        Image(systemName: "square.grid.2x2")
+                    }
+                    .help("Switch to card view")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    if #available(iOS 26, *) {
+                        if !vm.unenrichedLinks.isEmpty && !vm.isEnrichingAll {
+                            Button { Task { await vm.enrichAll() } } label: {
+                                Image(systemName: "sparkles")
                             }
-                            ForEach(vm.categories) { cat in
-                                Button { vm.selectedCategory = cat.name } label: {
-                                    Label { Text(cat.name) } icon: {
-                                        if vm.selectedCategory == cat.name { Image(systemName: "checkmark") }
-                                    }
-                                }
-                            }
-                        } label: { Label(vm.selectedCategory ?? "Category", systemImage: "folder") }
-                    }
-                    Section("Sort") {
-                        Button { vm.sortByStars = false } label: { Label("Newest", systemImage: vm.sortByStars ? "clock" : "checkmark") }
-                        Button { vm.sortByStars = true } label: { Label("Top Rated", systemImage: vm.sortByStars ? "checkmark" : "star.fill") }
-                    }
-                    Section {
-                        Button { withAnimation { isCurating = true; curateSelection.removeAll() } } label: {
-                            Label("Curate Collection", systemImage: "rectangle.stack.badge.plus")
+                            .help("Enrich \(vm.unenrichedLinks.count) articles")
                         }
-                    }
-                    if hasActiveFilters {
-                        Section {
-                            Button(role: .destructive) { vm.selectedCategory = nil; vm.selectedTag = nil; vm.sortByStars = false } label: {
-                                Label("Clear All Filters", systemImage: "xmark.circle")
-                            }
-                        }
-                    }
-                } label: {
-                    Image(systemName: hasActiveFilters
-                          ? "line.3.horizontal.decrease.circle.fill"
-                          : "line.3.horizontal.decrease.circle")
-                        .foregroundStyle(hasActiveFilters ? Color.accentColor : .primary)
-                }
-                .help("Filter & Sort")
-            }
-            // Trailing: enrich (when needed) · tags · info mode · card toggle
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showTagCloud = true } label: {
-                    Image(systemName: vm.selectedTag != nil ? "tag.fill" : "tag")
-                        .foregroundStyle(vm.selectedTag != nil ? Color.accentColor : .primary)
-                }
-                .help(vm.selectedTag != nil ? "Tag: \(vm.selectedTag!)" : "Filter by tag")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { isInfoMode.toggle() } label: {
-                    Image(systemName: isInfoMode ? "info.circle.fill" : "info.circle")
-                        .foregroundStyle(isInfoMode ? Color.accentColor : .primary)
-                }
-                .help(isInfoMode ? "Exit info mode" : "Info mode — click any article to see its details")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { viewMode = "cards"; selectedLink = nil } label: {
-                    Image(systemName: "square.grid.2x2")
-                }
-                .help("Switch to card view")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                if #available(iOS 26, *) {
-                    if !vm.unenrichedLinks.isEmpty && !vm.isEnrichingAll {
-                        Button { Task { await vm.enrichAll() } } label: {
-                            Image(systemName: "sparkles")
-                        }
-                        .help("Enrich \(vm.unenrichedLinks.count) articles")
                     }
                 }
             }
         }
+    }
+
+    var listFilterMenu: some View {
+        Menu {
+            if !vm.categories.isEmpty {
+                Menu {
+                    Button { vm.selectedCategory = nil } label: {
+                        Label("All", systemImage: vm.selectedCategory == nil ? "checkmark" : "tray.full")
+                    }
+                    ForEach(vm.categories) { cat in
+                        Button { vm.selectedCategory = cat.name } label: {
+                            Label { Text(cat.name) } icon: {
+                                if vm.selectedCategory == cat.name { Image(systemName: "checkmark") }
+                            }
+                        }
+                    }
+                } label: { Label(vm.selectedCategory ?? "Category", systemImage: "folder") }
+            }
+            Button { showTagCloud = true } label: {
+                Label(vm.selectedTag != nil ? "Tag: \(vm.selectedTag!)" : "Tags",
+                      systemImage: vm.selectedTag != nil ? "tag.fill" : "tag")
+            }
+            Section("Sort") {
+                Button { vm.sortByStars = false } label: { Label("Newest", systemImage: vm.sortByStars ? "clock" : "checkmark") }
+                Button { vm.sortByStars = true } label: { Label("Top Rated", systemImage: vm.sortByStars ? "checkmark" : "star.fill") }
+            }
+            Section {
+                Button { withAnimation { isCurating = true; curateSelection.removeAll() } } label: {
+                    Label("Curate Collection", systemImage: "rectangle.stack.badge.plus")
+                }
+            }
+            if hasActiveFilters {
+                Section {
+                    Button(role: .destructive) {
+                        vm.selectedCategory = nil; vm.selectedTag = nil; vm.sortByStars = false
+                    } label: { Label("Clear All Filters", systemImage: "xmark.circle") }
+                }
+            }
+        } label: {
+            Image(systemName: hasActiveFilters
+                  ? "line.3.horizontal.decrease.circle.fill"
+                  : "line.3.horizontal.decrease.circle")
+                .foregroundStyle(hasActiveFilters ? Color.accentColor : .primary)
+        }
+        .help("Filter & Sort")
     }
 
     func iPadRow(link: Link) -> some View {
