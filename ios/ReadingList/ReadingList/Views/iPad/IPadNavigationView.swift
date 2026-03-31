@@ -123,7 +123,6 @@ struct IPadReadingPane: View {
     @State private var selectedLink: Link? = nil
     @State private var isInfoMode: Bool = false
     @State private var isFullScreen: Bool = false
-    @State private var showDetailInfo: Bool = false
     @State private var showFinished: Bool = false
     @AppStorage("libraryViewMode") private var viewMode: String = "cards"
 
@@ -172,10 +171,56 @@ struct IPadReadingPane: View {
     @ViewBuilder
     func readerView(link: Link, geo: GeometryProxy) -> some View {
         let portrait = geo.size.height > geo.size.width
+
+        // Shared back/fullscreen leading button
+        @ViewBuilder func leadingButton() -> some View {
+            if portrait || isFullScreen {
+                Button {
+                    if isFullScreen && !portrait { isFullScreen = false }
+                    else { selectedLink = nil }
+                } label: { Image(systemName: "chevron.left") }
+            }
+        }
+
+        // Shared done + fullscreen trailing buttons
+        @ViewBuilder func sharedTrailing() -> some View {
+            Button {
+                Haptics.success()
+                showFinished = true
+            } label: {
+                Image(systemName: link.status == "done" ? "checkmark.circle.fill" : "checkmark.circle")
+                    .foregroundStyle(link.status == "done" ? .green : .primary)
+            }
+            .help("Mark as done (⇧⌘D)")
+            .keyboardShortcut("d", modifiers: [.command, .shift])
+
+            Button { withAnimation { isInfoMode.toggle() } } label: {
+                Image(systemName: isInfoMode ? "info.circle.fill" : "info.circle")
+                    .foregroundStyle(isInfoMode ? Color.accentColor : .primary)
+            }
+            .help(isInfoMode ? "Exit info mode" : "Article info")
+
+            if !portrait {
+                Button { isFullScreen.toggle() } label: {
+                    Image(systemName: isFullScreen
+                          ? "arrow.down.right.and.arrow.up.left"
+                          : "arrow.up.left.and.arrow.down.right")
+                }
+                .help(isFullScreen ? "Exit full screen" : "Full screen")
+                .keyboardShortcut("f", modifiers: [.command, .shift])
+            }
+        }
+
         if isInfoMode {
             ArticleDetailView(link: link)
                 .id(link.id + "info")
                 .environment(vm)
+                .navigationTitle(link.title ?? link.domain ?? "Article")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) { leadingButton() }
+                    ToolbarItemGroup(placement: .topBarTrailing) { sharedTrailing() }
+                }
         } else if let url = URL(string: link.url) {
             WebView(url: url)
                 .id(link.id)
@@ -183,50 +228,23 @@ struct IPadReadingPane: View {
                 .navigationTitle(link.title ?? link.domain ?? "Article")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    if portrait || isFullScreen {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button {
-                                if isFullScreen && !portrait {
-                                    isFullScreen = false
-                                } else {
-                                    selectedLink = nil
-                                }
-                            } label: { Image(systemName: "chevron.left") }
-                        }
-                    }
+                    ToolbarItem(placement: .topBarLeading) { leadingButton() }
                     ToolbarItemGroup(placement: .topBarTrailing) {
-                        Button {
-                            Haptics.success()
-                            showFinished = true
-                        } label: {
-                            Image(systemName: link.status == "done" ? "checkmark.circle.fill" : "checkmark.circle")
-                                .foregroundStyle(link.status == "done" ? .green : .primary)
-                        }
-                        .help("Mark as done (⇧⌘D)")
-                        .keyboardShortcut("d", modifiers: [.command, .shift])
-
-                        Button { showDetailInfo = true } label: { Image(systemName: "info.circle") }
-                            .help("Article info")
-
-                        Button { UIPasteboard.general.string = link.url } label: { Image(systemName: "doc.on.doc") }
-                            .help("Copy URL")
-
-                        Button { UIApplication.shared.open(url) } label: { Image(systemName: "safari") }
-                            .help("Open in Safari")
-
-                        if !portrait {
+                        sharedTrailing()
+                        Menu {
                             Button {
-                                isFullScreen.toggle()
+                                UIPasteboard.general.string = link.url
                             } label: {
-                                Image(systemName: isFullScreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                                Label("Copy URL", systemImage: "doc.on.doc")
                             }
-                            .help(isFullScreen ? "Exit full screen" : "Full screen")
-                            .keyboardShortcut("f", modifiers: [.command, .shift])
+                            Button { UIApplication.shared.open(url) } label: {
+                                Label("Open in Safari", systemImage: "safari")
+                            }
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
                         }
+                        .help("Share")
                     }
-                }
-                .sheet(isPresented: $showDetailInfo) {
-                    ArticleDetailView(link: link).environment(vm)
                 }
         } else {
             ContentUnavailableView("Invalid URL", systemImage: "link.badge.plus")
@@ -492,7 +510,7 @@ struct IPadArticleList: View {
                 }
             }
         }
-        .listStyle(.plain)
+        .listStyle(.inset)
         .navigationTitle(navTitle)
         .refreshable { await vm.refresh() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -532,15 +550,6 @@ struct IPadArticleList: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    viewMode = "cards"
-                    selectedLink = nil
-                } label: {
-                    Image(systemName: "square.grid.2x2")
-                }
-                .help("Switch to card view")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if !vm.categories.isEmpty {
                         Menu {
@@ -563,10 +572,6 @@ struct IPadArticleList: View {
                         Button { vm.sortByStars = true } label: { Label("Top Rated", systemImage: vm.sortByStars ? "checkmark" : "star.fill") }
                     }
                     Section {
-                        Button { isInfoMode.toggle() } label: {
-                            Label(isInfoMode ? "Exit Info Mode" : "Info Mode",
-                                  systemImage: isInfoMode ? "info.circle.fill" : "info.circle")
-                        }
                         Button { withAnimation { isCurating = true; curateSelection.removeAll() } } label: {
                             Label("Curate Collection", systemImage: "rectangle.stack.badge.plus")
                         }
@@ -579,9 +584,11 @@ struct IPadArticleList: View {
                         }
                     }
                 } label: {
-                    Image(systemName: isInfoMode ? "info.circle.fill" : "line.3.horizontal.decrease.circle")
+                    Image(systemName: vm.selectedCategory != nil || vm.sortByStars
+                          ? "line.3.horizontal.decrease.circle.fill"
+                          : "line.3.horizontal.decrease.circle")
                 }
-                .help(isInfoMode ? "Info Mode active" : "Filter & Sort")
+                .help("Filter & Sort")
             }
         }
     }

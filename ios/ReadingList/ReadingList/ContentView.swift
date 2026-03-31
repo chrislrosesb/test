@@ -50,9 +50,10 @@ struct ContentView: View {
                     .environment(libraryVM)
                     .environment(authVM)
             }
-            Tab("Search", systemImage: "magnifyingglass", value: "search", role: .search) {
-                SearchView()
+            Tab("Discover", systemImage: "sparkles", value: "discover") {
+                DiscoverView()
                     .environment(libraryVM)
+                    .environment(authVM)
             }
         }
     }

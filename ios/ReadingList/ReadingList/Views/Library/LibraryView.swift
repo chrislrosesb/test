@@ -16,6 +16,7 @@ struct LibraryView: View {
     @State private var showInsights = false
     @State private var showNotesReview = false
     @State private var showKnowledgeSynthesis = false
+    @State private var showSearch = false
     @State private var isCurating = false
     @State private var curateSelection: Set<String> = []
     @State private var showCurateSheet = false
@@ -181,6 +182,10 @@ struct LibraryView: View {
             TagCloudView(tagCounts: vm.tagCounts) { tag in
                 vm.selectedTag = tag
             }
+        }
+        .sheet(isPresented: $showSearch) {
+            SearchView()
+                .environment(vm)
         }
     }
 
@@ -357,40 +362,34 @@ struct LibraryView: View {
 
     @ToolbarContentBuilder
     var toolbarContent: some ToolbarContent {
+        // MARK: Leading — hamburger menu
         ToolbarItem(placement: .topBarLeading) {
             Menu {
-                // Today's Digest
+                // Intelligence
                 Button { showDigest = true } label: {
                     Label("Today's Reading", systemImage: "sun.max")
                 }
-
-                // Library Insights
                 Button { showInsights = true } label: {
                     Label("Library Insights", systemImage: "chart.bar.xaxis.ascending.badge.clock")
                 }
-
-                // Notes Review
                 Button { showNotesReview = true } label: {
                     Label("Notes Review", systemImage: "note.text")
                 }
-
-                // Sources
+                Button { showKnowledgeSynthesis = true } label: {
+                    Label("Knowledge Synthesis", systemImage: "brain")
+                }
                 Button { showSources = true } label: {
                     Label("Sources", systemImage: "globe")
                 }
 
-                // Categories (sub-menu)
+                // Filter & Sort
                 if !vm.categories.isEmpty {
                     Menu {
-                        Button {
-                            vm.selectedCategory = nil
-                        } label: {
+                        Button { vm.selectedCategory = nil } label: {
                             Label("All", systemImage: vm.selectedCategory == nil ? "checkmark" : "tray.full")
                         }
                         ForEach(vm.categories) { cat in
-                            Button {
-                                vm.selectedCategory = cat.name
-                            } label: {
+                            Button { vm.selectedCategory = cat.name } label: {
                                 Label {
                                     Text(cat.name)
                                 } icon: {
@@ -404,59 +403,34 @@ struct LibraryView: View {
                         Label(vm.selectedCategory ?? "Category", systemImage: "folder")
                     }
                 }
-
-                // Sort
+                Button { showTagCloud = true } label: {
+                    Label(vm.selectedTag != nil ? "Tag: \(vm.selectedTag!)" : "Tags",
+                          systemImage: vm.selectedTag != nil ? "tag.fill" : "tag")
+                }
                 Section("Sort") {
-                    Button {
-                        vm.sortByStars = false
-                    } label: {
+                    Button { vm.sortByStars = false } label: {
                         Label("Newest First", systemImage: vm.sortByStars ? "clock" : "checkmark")
                     }
-                    Button {
-                        vm.sortByStars = true
-                    } label: {
+                    Button { vm.sortByStars = true } label: {
                         Label("Highest Rated", systemImage: vm.sortByStars ? "checkmark" : "star.fill")
                     }
                 }
 
-                // Curate
-                Section("Share") {
-                    Button {
-                        withAnimation { isCurating = true; curateSelection.removeAll() }
-                    } label: {
+                // Actions
+                Section {
+                    Button { withAnimation { isCurating = true; curateSelection.removeAll() } } label: {
                         Label("Curate Collection", systemImage: "rectangle.stack.badge.plus")
                     }
                 }
 
-                // AI
-                Section("AI") {
-                    Button { showKnowledgeSynthesis = true } label: {
-                        Label("Knowledge Synthesis", systemImage: "brain")
-                    }
-
-                    Button {
-                        if #available(iOS 26, *) {
-                            Task { await vm.enrichAll() }
-                        }
-                    } label: {
-                        let count = vm.unenrichedLinks.count
-                        Label(count > 0 ? "Enrich All (\(count))" : "All Enriched", systemImage: "sparkles")
-                    }
-                    .disabled(vm.unenrichedLinks.isEmpty || vm.isEnrichingAll)
-                }
-
-                // Active tag
-                if let tag = vm.selectedTag {
-                    Section("Tag Filter") {
-                        Button(role: .destructive) {
-                            vm.selectedTag = nil
-                        } label: {
-                            Label("Clear: \(tag)", systemImage: "tag.slash")
-                        }
+                // Account
+                Section {
+                    Button { showProfile = true } label: {
+                        Label("Profile", systemImage: "person.circle")
                     }
                 }
 
-                // Clear all
+                // Clear filters (only when active)
                 if vm.hasActiveFilters {
                     Section {
                         Button(role: .destructive) {
@@ -476,13 +450,16 @@ struct LibraryView: View {
                     .symbolEffect(.bounce, value: vm.hasActiveFilters)
             }
         }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                showTagCloud = true
-            } label: {
-                Image(systemName: vm.selectedTag != nil ? "tag.fill" : "tag")
-                    .foregroundStyle(vm.selectedTag != nil ? Color.indigo : Color.primary)
-                    .symbolEffect(.bounce, value: vm.selectedTag)
+
+        // MARK: Trailing — Enrich All (only when needed), grid/list toggle, search
+        if #available(iOS 26, *) {
+            if !vm.unenrichedLinks.isEmpty && !vm.isEnrichingAll {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { Task { await vm.enrichAll() } } label: {
+                        Image(systemName: "sparkles")
+                    }
+                    .help("Enrich \(vm.unenrichedLinks.count) article(s)")
+                }
             }
         }
         ToolbarItem(placement: .topBarTrailing) {
@@ -495,8 +472,8 @@ struct LibraryView: View {
             }
         }
         ToolbarItem(placement: .topBarTrailing) {
-            Button { showProfile = true } label: {
-                Image(systemName: "person.circle")
+            Button { showSearch = true } label: {
+                Image(systemName: "magnifyingglass")
             }
         }
     }
