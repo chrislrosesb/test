@@ -104,27 +104,26 @@ final class LibraryViewModel {
         }.joined(separator: "\n\n")
     }
 
-    /// Context for the podcast digest: last 7 days (max 6 articles), fallback to most recent 6.
-    /// Kept short to fit the on-device FoundationModels context window — max ~300 chars per article.
+    /// Context for the podcast digest. Kept very short — on-device model has a small context window.
+    /// Max 4 articles, title + one short sentence each, total capped at 600 chars.
     var podcastContext: String {
         let weekCutoff = Date().addingTimeInterval(-7 * 86400)
-        let weekLinks = allLinks.filter { ($0.savedAt ?? .distantPast) >= weekCutoff }.prefix(6)
-        let source: [Link] = weekLinks.isEmpty ? Array(allLinks.prefix(6)) : Array(weekLinks)
+        let weekLinks = allLinks.filter { ($0.savedAt ?? .distantPast) >= weekCutoff }.prefix(4)
+        let source: [Link] = weekLinks.isEmpty ? Array(allLinks.prefix(4)) : Array(weekLinks)
         guard !source.isEmpty else { return "" }
-        return source.enumerated().map { i, link in
-            var parts = "\(i + 1). \"\(link.title ?? link.url)\" (\(link.domain ?? "unknown"))"
-            // Pick the richest short blurb available, capped at 300 chars
-            let blurb: String? = {
-                if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty {
-                    return String(ft.digest.prefix(300))
-                }
-                if let s = link.summary, !s.isEmpty { return String(s.prefix(300)) }
-                if let n = link.note, !n.isEmpty { return "My note: \(String(n.prefix(200)))" }
-                return nil
+        let lines = source.enumerated().map { i, link in
+            let title = String((link.title ?? link.url).prefix(80))
+            let domain = link.domain ?? "unknown"
+            // First sentence of summary/note only, capped at 100 chars
+            let blurb: String = {
+                let candidates = [link.summary, link.note].compactMap { $0 }.filter { !$0.isEmpty }
+                guard let raw = candidates.first else { return "" }
+                let sentence = raw.components(separatedBy: ".").first ?? raw
+                return " — " + String(sentence.trimmingCharacters(in: .whitespaces).prefix(100))
             }()
-            if let blurb { parts += "\n   \(blurb)" }
-            return parts
-        }.joined(separator: "\n\n")
+            return "\(i + 1). \"\(title)\" (\(domain))\(blurb)"
+        }
+        return String(lines.joined(separator: "\n").prefix(600))
     }
 
     /// Compact pre-aggregated stats string for the Insights prompt.

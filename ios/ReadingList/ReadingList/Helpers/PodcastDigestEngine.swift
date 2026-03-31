@@ -42,6 +42,26 @@ enum PodcastPhase {
 
 }
 
+// MARK: - Generable structured output types (iOS 26 / FoundationModels)
+
+#if canImport(FoundationModels)
+@available(iOS 26, *)
+@Generable
+struct PodcastScript {
+    @Guide("Between 12 and 16 dialogue lines, alternating between KAI and DEV")
+    var lines: [ScriptLine]
+}
+
+@available(iOS 26, *)
+@Generable
+struct ScriptLine {
+    @Guide("The speaker. Must be exactly KAI or DEV.")
+    var speaker: String
+    @Guide("What they say. Casual, under 18 words. No stage directions.")
+    var text: String
+}
+#endif
+
 // MARK: - Engine
 
 @MainActor
@@ -110,39 +130,47 @@ final class PodcastDigestEngine: NSObject {
     @available(iOS 26, *)
     private func generateScript(context: String) async {
         #if canImport(FoundationModels)
-        // Cap context to ~1200 chars to stay well within the on-device model's context window
-        let trimmedContext = String(context.prefix(1200))
+        // Hard cap: on-device model has a small context window (~4K tokens total)
+        let trimmedContext = String(context.prefix(600))
+
+        let instructions = """
+        You are writing dialogue for a casual tech podcast called "The Backlog". \
+        KAI explains ideas and makes connections ("Ok so here's the thing—", "No but think about it—"). \
+        DEV reacts with enthusiasm and asks obvious questions ("Wait wait wait", "Oh dude", "Ok but WHY"). \
+        Lines are short and punchy — under 18 words. Casual, like two friends on a couch. Dry humor welcome.
+        """
+
         let prompt = """
-        Write a casual two-host podcast script about these saved articles. Hosts: KAI (explains, nerdy, "Ok so here's the thing—") and DEV (reacts big, "Wait wait wait", "Oh dude"). Like two friends on a couch, short punchy lines under 20 words, occasional dry humor, em-dash for interruptions.
+        Write a 12-line podcast script where KAI and DEV discuss these saved articles. \
+        Start with one line of off-topic banter. Have DEV misunderstand one article and KAI correct them. \
+        End with KAI's top pick and DEV's disagreement.
 
         Articles:
         \(trimmedContext)
-
-        Rules:
-        - Each line: [KAI] text OR [DEV] text, no blank lines
-        - 16–20 exchanges
-        - One brief off-topic opener
-        - DEV misunderstands something, KAI corrects with exasperation
-        - End with KAI's top pick and DEV's hot take disagreement
-        - Plain dialogue only, no stage directions
         """
 
         do {
-            let session = LanguageModelSession()
-            let response = try await session.respond(to: prompt)
-            let parsed = parseScript(response.content)
-            guard !parsed.isEmpty else {
-                phase = .error("Script came back empty — try regenerating.")
+            let session = LanguageModelSession(instructions: instructions)
+            let result = try await session.respond(to: prompt, generating: PodcastScript.self)
+            let lines: [PodcastLine] = result.lines.compactMap { line in
+                switch line.speaker.uppercased().trimmingCharacters(in: .whitespaces) {
+                case "KAI": return PodcastLine(speaker: .kai, text: line.text)
+                case "DEV": return PodcastLine(speaker: .dev, text: line.text)
+                default:    return nil
+                }
+            }
+            guard !lines.isEmpty else {
+                phase = .error("No dialogue generated — tap Regenerate to try again.")
                 return
             }
-            allLines = parsed
-            phase = .ready(parsed)
+            allLines = lines
+            phase = .ready(lines)
         } catch {
             let desc = error.localizedDescription.lowercased()
             if desc.contains("available") || desc.contains("support") || desc.contains("intelligence") {
                 phase = .unavailable("Apple Intelligence is not available on this device.")
             } else if desc.contains("context") || desc.contains("length") || desc.contains("token") {
-                phase = .error("Content too long for on-device AI. Try again — it uses fewer articles each time.")
+                phase = .error("On-device AI context exceeded — tap Regenerate.")
             } else {
                 phase = .error(error.localizedDescription)
             }
@@ -150,28 +178,6 @@ final class PodcastDigestEngine: NSObject {
         #else
         phase = .unavailable("FoundationModels framework is not available in this build.")
         #endif
-    }
-
-    private func parseScript(_ raw: String) -> [PodcastLine] {
-        raw.components(separatedBy: .newlines).compactMap { line in
-            let t = line.trimmingCharacters(in: .whitespaces)
-            if t.uppercased().hasPrefix("[KAI]") {
-                let text = t.dropFirst(5).trimmingCharacters(in: .whitespaces)
-                return text.isEmpty ? nil : PodcastLine(speaker: .kai, text: text)
-            } else if t.uppercased().hasPrefix("[DEV]") {
-                let text = t.dropFirst(5).trimmingCharacters(in: .whitespaces)
-                return text.isEmpty ? nil : PodcastLine(speaker: .dev, text: text)
-            }
-            // Also accept "KAI: " or "DEV: " format as fallback
-            if t.uppercased().hasPrefix("KAI:") {
-                let text = t.dropFirst(4).trimmingCharacters(in: .whitespaces)
-                return text.isEmpty ? nil : PodcastLine(speaker: .kai, text: text)
-            } else if t.uppercased().hasPrefix("DEV:") {
-                let text = t.dropFirst(4).trimmingCharacters(in: .whitespaces)
-                return text.isEmpty ? nil : PodcastLine(speaker: .dev, text: text)
-            }
-            return nil
-        }
     }
 
     // MARK: - Playback Control
