@@ -14,6 +14,7 @@ struct LibraryView: View {
     @State private var showSources = false
     @State private var showDigest = false
     @State private var showPodcastDigest = false
+    @State private var showReflectQueue = false
     @State private var showInsights = false
     @State private var showNotesReview = false
     @State private var showKnowledgeSynthesis = false
@@ -106,6 +107,10 @@ struct LibraryView: View {
         }
         .sheet(isPresented: $showPodcastDigest) {
             PodcastDigestView()
+                .environment(vm)
+        }
+        .sheet(isPresented: $showReflectQueue) {
+            ReflectionQueueView()
                 .environment(vm)
         }
         .sheet(isPresented: $showInsights) {
@@ -376,6 +381,14 @@ struct LibraryView: View {
                 }
                 Button { showPodcastDigest = true } label: {
                     Label("Audio Briefing", systemImage: "waveform.and.mic")
+                }
+                Button { showReflectQueue = true } label: {
+                    let count = ReflectionStore.shared.pendingCount
+                    if count > 0 {
+                        Label("Reflect  (\(count))", systemImage: "sparkles.rectangle.stack")
+                    } else {
+                        Label("Reflect", systemImage: "sparkles.rectangle.stack")
+                    }
                 }
                 Button { showInsights = true } label: {
                     Label("Library Insights", systemImage: "chart.bar.xaxis.ascending.badge.clock")

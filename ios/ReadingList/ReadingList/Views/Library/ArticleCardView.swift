@@ -3,6 +3,8 @@ import SwiftUI
 struct ArticleCardView: View {
     let link: Link
 
+    private var store: ReflectionStore { ReflectionStore.shared }
+
     private var hasImage: Bool {
         link.image != nil
     }
@@ -27,6 +29,16 @@ struct ArticleCardView: View {
                         }
                     } else {
                         fallbackImage
+                    }
+                }
+                .overlay(alignment: .topTrailing) {
+                    if store.isPending(link.id) {
+                        Image(systemName: "sparkles.rectangle.stack")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(6)
+                            .background(Color.teal, in: RoundedRectangle(cornerRadius: 8))
+                            .padding(10)
                     }
                 }
                 .clipped()
@@ -80,7 +92,12 @@ struct ArticleCardView: View {
             }
             .padding(.horizontal, 14)
             .padding(.top, 8)
-            .padding(.bottom, 12)
+            .padding(.bottom, 8)
+
+            // Depth score bar
+            depthBar
+                .padding(.horizontal, 14)
+                .padding(.bottom, 12)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemBackground))
@@ -90,6 +107,31 @@ struct ArticleCardView: View {
                 .strokeBorder(statusGlowColor?.opacity(0.5) ?? Color.white.opacity(0.08), lineWidth: statusGlowColor != nil ? 1.5 : 0.5)
         )
         .shadow(color: statusGlowColor?.opacity(0.3) ?? .clear, radius: 8, x: 0, y: 2)
+    }
+
+    // MARK: - Depth bar
+
+    var depthBar: some View {
+        let score = store.depthScore(for: link)
+        let color = store.depthColor(score: score)
+        return HStack(spacing: 6) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color(.systemGray5))
+                        .frame(height: 3)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color)
+                        .frame(width: geo.size.width * CGFloat(score) / 100, height: 3)
+                }
+            }
+            .frame(height: 3)
+            Text("\(score)")
+                .font(.system(size: 9))
+                .foregroundStyle(color)
+                .fontWeight(.semibold)
+                .frame(width: 20, alignment: .trailing)
+        }
     }
 
     // MARK: - Fallback

@@ -9,6 +9,7 @@ enum SidebarItem: String, Hashable, CaseIterable {
     case notes = "Notes"
     case knowledge = "Knowledge"
     case podcast = "Audio Briefing"
+    case reflect = "Reflect"
     case search = "Search"
     case profile = "Profile"
 
@@ -22,6 +23,7 @@ enum SidebarItem: String, Hashable, CaseIterable {
         case .notes: return "note.text"
         case .knowledge: return "brain"
         case .podcast: return "waveform.and.mic"
+        case .reflect: return "sparkles.rectangle.stack"
         case .search: return "magnifyingglass"
         case .profile: return "person.circle"
         }
@@ -61,6 +63,7 @@ struct IPadNavigationView: View {
                 Label("Notes Review", systemImage: "note.text").tag(SidebarItem.notes)
                 Label("Knowledge Synthesis", systemImage: "brain").tag(SidebarItem.knowledge)
                 Label("Audio Briefing", systemImage: "waveform.and.mic").tag(SidebarItem.podcast)
+                Label("Reflect", systemImage: "sparkles.rectangle.stack").tag(SidebarItem.reflect)
                 Label("Search", systemImage: "magnifyingglass").tag(SidebarItem.search)
             }
             Section {
@@ -108,6 +111,8 @@ struct IPadNavigationView: View {
             KnowledgeSynthesisView().environment(vm)
         case .podcast:
             PodcastDigestView().environment(vm)
+        case .reflect:
+            ReflectionQueueView().environment(vm)
         case .search:
             SearchView().environment(vm)
         case .profile:
@@ -129,6 +134,7 @@ struct IPadReadingPane: View {
     @State private var isInfoMode: Bool = false
     @State private var isFullScreen: Bool = false
     @State private var showFinished: Bool = false
+    @State private var reflectLink: Link? = nil
     @AppStorage("libraryViewMode") private var viewMode: String = "cards"
 
     var isDoTab: Bool { statusFilter == "to-try" }
@@ -164,10 +170,17 @@ struct IPadReadingPane: View {
             .animation(.spring(duration: 0.38, bounce: 0.05), value: selectedLink == nil)
             .sheet(isPresented: $showFinished) {
                 if let link = selectedLink {
-                    FinishedReadingSheet(link: link, vm: vm) {
+                    FinishedReadingSheet(link: link, vm: vm, onDismiss: {
                         showFinished = false
                         selectedLink = nil
-                    }
+                    }, onReflect: { link in
+                        reflectLink = link
+                    })
+                }
+            }
+            .sheet(item: $reflectLink) { link in
+                ReflectionView(link: link, vm: vm) {
+                    reflectLink = nil
                 }
             }
         }

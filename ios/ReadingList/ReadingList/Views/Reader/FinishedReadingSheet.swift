@@ -4,14 +4,20 @@ struct FinishedReadingSheet: View {
     let link: Link
     let vm: LibraryViewModel
     let onDismiss: () -> Void
+    var onReflect: ((Link) -> Void)? = nil
 
     @State private var quickNote = ""
     @State private var showNote = false
     @State private var saved = false
+    @State private var showReflectPrompt = false
+
+    private var store: ReflectionStore { ReflectionStore.shared }
 
     var body: some View {
         VStack(spacing: 0) {
-            if saved {
+            if showReflectPrompt {
+                reflectPromptView
+            } else if saved {
                 savedView
             } else if showNote {
                 noteView
@@ -53,7 +59,9 @@ struct FinishedReadingSheet: View {
                     Task {
                         await vm.updateStatus(link: link, status: "done")
                         withAnimation { saved = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { onDismiss() }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                            withAnimation { saved = false; showReflectPrompt = true }
+                        }
                     }
                 } label: {
                     Label("Mark as Done", systemImage: "checkmark.circle.fill")
@@ -119,7 +127,9 @@ struct FinishedReadingSheet: View {
                             await vm.updateNote(link: link, note: quickNote)
                         }
                         withAnimation { saved = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { onDismiss() }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                            withAnimation { saved = false; showReflectPrompt = true }
+                        }
                     }
                 } label: {
                     Label("Save & Mark Done", systemImage: "checkmark.circle.fill")
@@ -143,7 +153,7 @@ struct FinishedReadingSheet: View {
         }
     }
 
-    // MARK: - Saved confirmation
+    // MARK: - Saved confirmation (brief)
 
     var savedView: some View {
         VStack(spacing: 16) {
@@ -156,6 +166,89 @@ struct FinishedReadingSheet: View {
                 .font(.title2)
                 .fontWeight(.bold)
             Spacer()
+        }
+    }
+
+    // MARK: - Reflect prompt
+
+    var reflectPromptView: some View {
+        VStack(spacing: 20) {
+            Spacer()
+
+            VStack(spacing: 8) {
+                Image(systemName: "sparkles.rectangle.stack")
+                    .font(.system(size: 44))
+                    .foregroundStyle(.teal)
+
+                Text("Go deeper?")
+                    .font(.title3)
+                    .fontWeight(.bold)
+
+                Text("Answer a couple of questions to lock in what you learned.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
+
+            // Depth score preview
+            let score = store.depthScore(for: link)
+            let afterScore = min(score + 25, 100)
+            HStack(spacing: 6) {
+                Image(systemName: "waveform")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Depth \(score)")
+                    .foregroundStyle(.secondary)
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                Text("\(afterScore)")
+                    .fontWeight(.bold)
+                    .foregroundStyle(store.depthColor(score: afterScore))
+            }
+            .font(.caption)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Color(.tertiarySystemBackground), in: Capsule())
+
+            Spacer()
+
+            VStack(spacing: 12) {
+                Button {
+                    onDismiss()
+                    onReflect?(link)
+                } label: {
+                    Label("Reflect Now", systemImage: "sparkles")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.teal)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                Button {
+                    store.addToPending(linkId: link.id)
+                    onDismiss()
+                } label: {
+                    Text("Remind me later")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                }
+                .buttonStyle(.bordered)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                Button("Skip") {
+                    onDismiss()
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.top, 4)
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
         }
     }
 }

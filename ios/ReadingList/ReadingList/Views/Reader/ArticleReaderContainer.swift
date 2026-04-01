@@ -14,6 +14,7 @@ struct ArticleReaderContainer: View {
     @State private var showFinished = false
     @State private var showSafariView = false
     @State private var isReaderMode = false
+    @State private var reflectLink: Link? = nil
 
     @AppStorage("readerFontSize") private var fontSize: Double = 17
     @AppStorage("readerFont") private var fontRaw: String = "system"
@@ -105,9 +106,16 @@ struct ArticleReaderContainer: View {
             TypographySheet()
         }
         .sheet(isPresented: $showFinished) {
-            FinishedReadingSheet(link: currentLink, vm: vm) {
+            FinishedReadingSheet(link: currentLink, vm: vm, onDismiss: {
                 showFinished = false
                 dismiss()
+            }, onReflect: { link in
+                reflectLink = link
+            })
+        }
+        .sheet(item: $reflectLink) { link in
+            ReflectionView(link: link, vm: vm) {
+                reflectLink = nil
             }
         }
         .sheet(isPresented: $showSafariView) {
