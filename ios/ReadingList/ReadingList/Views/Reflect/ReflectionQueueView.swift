@@ -79,7 +79,7 @@ struct ReflectionQueueView: View {
                 reflectLink = link
             }
             .buttonStyle(.borderedProminent)
-            .tint(.teal)
+            .tint(Color.teal)
             .font(.subheadline)
             .fontWeight(.semibold)
         }

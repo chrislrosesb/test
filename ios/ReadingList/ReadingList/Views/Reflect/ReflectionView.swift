@@ -41,7 +41,7 @@ struct ReflectionView: View {
                     if case .done = engine.phase {
                         Button("Save & Close") { saveAndClose() }
                             .fontWeight(.semibold)
-                            .foregroundStyle(.teal)
+                            .foregroundStyle(Color.teal)
                     }
                 }
             }
@@ -59,11 +59,11 @@ struct ReflectionView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "sparkles.rectangle.stack")
                         .font(.caption)
-                        .foregroundStyle(.teal)
+                        .foregroundStyle(Color.teal)
                     Text("Reflect")
                         .font(.caption)
                         .fontWeight(.semibold)
-                        .foregroundStyle(.teal)
+                        .foregroundStyle(Color.teal)
                 }
                 Text(link.title ?? link.domain ?? "Article")
                     .font(.subheadline)
@@ -186,7 +186,7 @@ struct ReflectionView: View {
             Label("Reflection saved", systemImage: "checkmark.circle.fill")
                 .font(.subheadline)
                 .fontWeight(.semibold)
-                .foregroundStyle(.teal)
+                .foregroundStyle(Color.teal)
             Text("This has been added to your note. Tap Save & Close to finish.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -210,7 +210,7 @@ struct ReflectionView: View {
                 .foregroundStyle(.orange)
             Text(msg).font(.caption).foregroundStyle(.secondary)
             Button("Try Again") { Task { await engine.start() } }
-                .font(.caption).tint(.teal)
+                .font(.caption).tint(Color.teal)
         }
         .padding()
     }
@@ -240,7 +240,7 @@ struct ReflectionView: View {
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 32))
-                        .foregroundStyle(engine.inputText.trimmingCharacters(in: .whitespaces).isEmpty ? .tertiary : .teal)
+                        .foregroundStyle(engine.inputText.trimmingCharacters(in: .whitespaces).isEmpty ? AnyShapeStyle(.tertiary) : AnyShapeStyle(Color.teal))
                 }
                 .disabled(engine.inputText.trimmingCharacters(in: .whitespaces).isEmpty)
             }

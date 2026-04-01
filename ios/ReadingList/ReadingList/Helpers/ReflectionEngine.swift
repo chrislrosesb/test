@@ -13,7 +13,7 @@ struct ReflectionMessage: Identifiable {
 
 enum ReflectionRole { case ai, user }
 
-enum ReflectionPhase {
+enum ReflectionPhase: Equatable {
     case idle
     case thinking
     case waitingForAnswer(exchange: Int) // 1 = first, 2 = follow-up

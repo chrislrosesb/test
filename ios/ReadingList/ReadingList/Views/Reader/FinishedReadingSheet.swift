@@ -178,7 +178,7 @@ struct FinishedReadingSheet: View {
             VStack(spacing: 8) {
                 Image(systemName: "sparkles.rectangle.stack")
                     .font(.system(size: 44))
-                    .foregroundStyle(.teal)
+                    .foregroundStyle(Color.teal)
 
                 Text("Go deeper?")
                     .font(.title3)
@@ -225,7 +225,7 @@ struct FinishedReadingSheet: View {
                         .padding(.vertical, 16)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.teal)
+                .tint(Color.teal)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 Button {
