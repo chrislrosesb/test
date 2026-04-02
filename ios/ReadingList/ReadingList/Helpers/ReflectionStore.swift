@@ -21,6 +21,8 @@ final class ReflectionStore {
     private(set) var pendingQueue: [String: Date] = [:]
     // Set of linkIds that have been reflected on
     private(set) var reflectedIds: Set<String> = []
+    // Set of linkIds the user has dismissed from suggestions (never show again)
+    private(set) var dismissedFromSuggestions: Set<String> = []
     // Streak tracking
     private(set) var currentStreak: Int = 0
     private(set) var lastReflectionDate: Date?
@@ -31,6 +33,7 @@ final class ReflectionStore {
     private enum Keys {
         static let pending   = "reflect.pending"
         static let reflected = "reflect.reflected"
+        static let dismissed = "reflect.dismissed"
         static let streak    = "reflect.streak"
         static let lastDate  = "reflect.lastDate"
         static let lastType  = "reflect.lastType"
@@ -70,6 +73,13 @@ final class ReflectionStore {
     func queuedAt(linkId: String) -> Date? { pendingQueue[linkId] }
 
     // MARK: - Reflection completion
+
+    func dismissFromSuggestions(linkId: String) {
+        dismissedFromSuggestions.insert(linkId)
+        save()
+    }
+
+    func isDismissed(_ linkId: String) -> Bool { dismissedFromSuggestions.contains(linkId) }
 
     func markReflected(linkId: String) {
         reflectedIds.insert(linkId)
@@ -154,6 +164,8 @@ final class ReflectionStore {
            let v = try? JSONDecoder().decode([String: Date].self, from: d) { pendingQueue = v }
         if let d = defaults.data(forKey: Keys.reflected),
            let v = try? JSONDecoder().decode(Set<String>.self, from: d) { reflectedIds = v }
+        if let d = defaults.data(forKey: Keys.dismissed),
+           let v = try? JSONDecoder().decode(Set<String>.self, from: d) { dismissedFromSuggestions = v }
         currentStreak = defaults.integer(forKey: Keys.streak)
         lastReflectionDate = defaults.object(forKey: Keys.lastDate) as? Date
         if let raw = defaults.string(forKey: Keys.lastType),
@@ -163,6 +175,7 @@ final class ReflectionStore {
     private func save() {
         if let d = try? JSONEncoder().encode(pendingQueue)  { defaults.set(d, forKey: Keys.pending) }
         if let d = try? JSONEncoder().encode(reflectedIds)  { defaults.set(d, forKey: Keys.reflected) }
+        if let d = try? JSONEncoder().encode(dismissedFromSuggestions) { defaults.set(d, forKey: Keys.dismissed) }
         defaults.set(currentStreak, forKey: Keys.streak)
         defaults.set(lastReflectionDate, forKey: Keys.lastDate)
         defaults.set(lastQuestionType.rawValue, forKey: Keys.lastType)

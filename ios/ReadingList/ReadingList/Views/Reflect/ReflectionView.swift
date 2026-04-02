@@ -7,6 +7,7 @@ struct ReflectionView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var engine: ReflectionEngine
     @State private var engineTask: Task<Void, Never>? = nil
+    @State private var showReader = false
     @FocusState private var inputFocused: Bool
 
     private let store = ReflectionStore.shared
@@ -54,6 +55,9 @@ struct ReflectionView: View {
             engineTask?.cancel()
             engineTask = nil
         }
+        .fullScreenCover(isPresented: $showReader) {
+            ArticleReaderContainer(links: [link], initialIndex: 0, vm: vm)
+        }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
@@ -72,10 +76,27 @@ struct ReflectionView: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(Color.teal)
                 }
-                Text(link.title ?? link.domain ?? "Article")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .lineLimit(1)
+                Button {
+                    showReader = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(link.title ?? link.domain ?? "Article")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .lineLimit(2)
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.leading)
+                        Image(systemName: "arrow.up.right.circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.teal)
+                    }
+                }
+                .buttonStyle(.plain)
+                if let domain = link.domain {
+                    Text(domain)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
             depthScoreChip

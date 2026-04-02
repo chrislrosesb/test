@@ -3,6 +3,7 @@ import SwiftUI
 struct ReflectionQueueView: View {
     @Environment(LibraryViewModel.self) private var vm
     @State private var reflectLink: Link? = nil
+    @State private var readerLink: Link? = nil
 
     private var store: ReflectionStore { ReflectionStore.shared }
 
@@ -10,10 +11,14 @@ struct ReflectionQueueView: View {
         store.pendingLinks(from: vm.allLinks)
     }
 
-    // Up to 6 random articles the user hasn't reflected on yet
+    // Up to 6 random articles — exclude reflected, pending, and dismissed
     var suggestedLinks: [Link] {
         vm.allLinks
-            .filter { !store.isReflected($0.id) && !store.isPending($0.id) }
+            .filter {
+                !store.isReflected($0.id) &&
+                !store.isPending($0.id) &&
+                !store.isDismissed($0.id)
+            }
             .shuffled()
             .prefix(6)
             .map { $0 }
@@ -38,15 +43,17 @@ struct ReflectionQueueView: View {
                             title: "Saved for Later",
                             icon: "clock",
                             color: .orange,
-                            links: pendingLinks
+                            links: pendingLinks,
+                            canDismiss: false
                         )
                     }
 
                     articleSection(
                         title: pendingLinks.isEmpty ? "Reflect on Something" : "Explore More",
                         icon: "sparkles",
-                        color: .teal,
-                        links: suggestedLinks
+                        color: Color.teal,
+                        links: suggestedLinks,
+                        canDismiss: true
                     )
                 }
                 .padding(.horizontal, 16)
@@ -59,6 +66,9 @@ struct ReflectionQueueView: View {
         }
         .sheet(item: $reflectLink) { link in
             ReflectionView(link: link, vm: vm)
+        }
+        .fullScreenCover(item: $readerLink) { link in
+            ArticleReaderContainer(links: [link], initialIndex: 0, vm: vm)
         }
     }
 
@@ -76,7 +86,7 @@ struct ReflectionQueueView: View {
                 value: "\(totalReflected)",
                 label: "reflected",
                 icon: "checkmark.circle.fill",
-                color: .teal
+                color: Color.teal
             )
             statCard(
                 value: "\(averageDepth)",
@@ -106,7 +116,7 @@ struct ReflectionQueueView: View {
 
     // MARK: - Article sections
 
-    func articleSection(title: String, icon: String, color: Color, links: [Link]) -> some View {
+    func articleSection(title: String, icon: String, color: Color, links: [Link], canDismiss: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Label(title, systemImage: icon)
                 .font(.subheadline.weight(.semibold))
@@ -122,7 +132,7 @@ struct ReflectionQueueView: View {
                     .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
             } else {
                 ForEach(links) { link in
-                    reflectRow(link: link)
+                    reflectRow(link: link, canDismiss: canDismiss)
                 }
             }
         }
@@ -130,55 +140,85 @@ struct ReflectionQueueView: View {
 
     // MARK: - Row
 
-    func reflectRow(link: Link) -> some View {
+    func reflectRow(link: Link, canDismiss: Bool) -> some View {
         let score = store.depthScore(for: link)
         let color = store.depthColor(score: score)
 
-        return HStack(spacing: 12) {
-            // Depth ring
-            ZStack {
-                Circle()
-                    .stroke(Color(.systemGray5), lineWidth: 3)
-                    .frame(width: 36, height: 36)
-                Circle()
-                    .trim(from: 0, to: CGFloat(score) / 100)
-                    .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: 36, height: 36)
-                Text("\(score)")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(color)
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(link.title ?? link.url)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .lineLimit(2)
-                HStack(spacing: 4) {
-                    if let domain = link.domain {
-                        Text(domain).foregroundStyle(.secondary)
+        return VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                // Depth ring — tappable to read
+                Button { readerLink = link } label: {
+                    ZStack {
+                        Circle()
+                            .stroke(Color(.systemGray5), lineWidth: 3)
+                        Circle()
+                            .trim(from: 0, to: CGFloat(score) / 100)
+                            .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        Image(systemName: "book")
+                            .font(.system(size: 10))
+                            .foregroundStyle(color)
                     }
-                    if let queuedAt = store.queuedAt(linkId: link.id) {
-                        Text("·").foregroundStyle(.tertiary)
-                        Text(queuedAt.timeAgo).foregroundStyle(.tertiary)
+                    .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.plain)
+
+                // Title + meta — tappable to read
+                Button { readerLink = link } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(link.title ?? link.url)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .lineLimit(2)
+                            .foregroundStyle(.primary)
+                        HStack(spacing: 4) {
+                            if let domain = link.domain {
+                                Text(domain).foregroundStyle(.secondary)
+                            }
+                            if let queuedAt = store.queuedAt(linkId: link.id) {
+                                Text("·").foregroundStyle(.tertiary)
+                                Text(queuedAt.timeAgo).foregroundStyle(.tertiary)
+                            }
+                        }
+                        .font(.caption)
                     }
                 }
-                .font(.caption)
-            }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer()
+                // Action buttons
+                HStack(spacing: 8) {
+                    if canDismiss {
+                        Button {
+                            withAnimation(.spring(duration: 0.3)) {
+                                store.dismissFromSuggestions(linkId: link.id)
+                            }
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 28, height: 28)
+                                .background(Color(.systemGray5), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
 
-            Button("Reflect") {
-                reflectLink = link
+                    Button("Reflect") {
+                        reflectLink = link
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.teal)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .controlSize(.small)
+                }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Color.teal)
-            .font(.subheadline)
-            .fontWeight(.semibold)
-            .controlSize(.small)
+            .padding(14)
         }
-        .padding(14)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+        .transition(.asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: 0.95)),
+            removal: .opacity.combined(with: .move(edge: .trailing))
+        ))
     }
 }

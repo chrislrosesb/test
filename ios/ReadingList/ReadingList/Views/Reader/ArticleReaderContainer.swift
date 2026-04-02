@@ -70,6 +70,10 @@ struct ArticleReaderContainer: View {
 
                         // Overflow: everything else
                         Menu {
+                            Button { reflectLink = currentLink } label: {
+                                Label("Reflect on this Article", systemImage: "sparkles.rectangle.stack")
+                            }
+                            Divider()
                             Button { shareArticle() } label: {
                                 Label("Share", systemImage: "square.and.arrow.up")
                             }
