@@ -133,9 +133,17 @@ struct IPadReadingPane: View {
     @State private var selectedLink: Link? = nil
     @State private var isInfoMode: Bool = false
     @State private var isFullScreen: Bool = false
+    @State private var isReaderMode: Bool = false
     @State private var showFinished: Bool = false
+    @State private var showTypography: Bool = false
     @State private var reflectLink: Link? = nil
     @AppStorage("libraryViewMode") private var viewMode: String = "cards"
+    @AppStorage("readerFontSize") private var fontSize: Double = 17
+    @AppStorage("readerFont") private var fontRaw: String = "system"
+    @AppStorage("readerTheme") private var themeRaw: String = "dark"
+
+    var readerFont: ReaderFont { ReaderFont(rawValue: fontRaw) ?? .system }
+    var readerTheme: ReaderTheme { ReaderTheme(rawValue: themeRaw) ?? .dark }
 
     var isDoTab: Bool { statusFilter == "to-try" }
 
@@ -181,6 +189,13 @@ struct IPadReadingPane: View {
             .sheet(item: $reflectLink) { link in
                 ReflectionView(link: link, vm: vm)
             }
+            .sheet(isPresented: $showTypography) {
+                TypographySheet()
+            }
+            .onChange(of: selectedLink) { _, _ in
+                isReaderMode = false
+                isInfoMode = false
+            }
         }
     }
 
@@ -205,6 +220,14 @@ struct IPadReadingPane: View {
         }
         .help("Mark as done (⇧⌘D)")
         .keyboardShortcut("d", modifiers: [.command, .shift])
+
+        // Reader / Web toggle
+        Button {
+            withAnimation(.spring(duration: 0.3)) { isReaderMode.toggle() }
+        } label: {
+            Image(systemName: isReaderMode ? "globe" : "doc.text")
+        }
+        .help(isReaderMode ? "Switch to web view" : "Switch to reader view")
 
         Button { withAnimation { isInfoMode.toggle() } } label: {
             Image(systemName: isInfoMode ? "info.circle.fill" : "info.circle")
@@ -242,32 +265,54 @@ struct IPadReadingPane: View {
                     }
                 }
         } else if let url = URL(string: link.url) {
-            WebView(url: url)
-                .id(link.id)
-                .ignoresSafeArea(edges: .bottom)
-                .navigationTitle(link.title ?? link.domain ?? "Article")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        readerLeadingButton(portrait: portrait)
-                    }
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        readerTrailingButtons(link: link, portrait: portrait)
-                        Menu {
-                            Button {
-                                UIPasteboard.general.string = link.url
-                            } label: {
-                                Label("Copy URL", systemImage: "doc.on.doc")
-                            }
-                            Button { UIApplication.shared.open(url) } label: {
-                                Label("Open in Safari", systemImage: "safari")
-                            }
-                        } label: {
-                            Image(systemName: "square.and.arrow.up")
-                        }
-                        .help("Share")
-                    }
+            Group {
+                if isReaderMode {
+                    ReaderWebView(
+                        url: url,
+                        fontSize: fontSize,
+                        font: readerFont,
+                        theme: readerTheme,
+                        onFallback: { withAnimation { isReaderMode = false } }
+                    )
+                    .id(link.id + "reader")
+                } else {
+                    WebView(url: url)
+                        .id(link.id)
                 }
+            }
+            .ignoresSafeArea(edges: .bottom)
+            .navigationTitle(link.title ?? link.domain ?? "Article")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    readerLeadingButton(portrait: portrait)
+                }
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    readerTrailingButtons(link: link, portrait: portrait)
+                    Menu {
+                        Button { reflectLink = link } label: {
+                            Label("Reflect on this Article", systemImage: "sparkles.rectangle.stack")
+                        }
+                        Divider()
+                        if isReaderMode {
+                            Button { showTypography = true } label: {
+                                Label("Typography", systemImage: "textformat.size")
+                            }
+                        }
+                        Button {
+                            UIPasteboard.general.string = link.url
+                        } label: {
+                            Label("Copy URL", systemImage: "doc.on.doc")
+                        }
+                        Button { UIApplication.shared.open(url) } label: {
+                            Label("Open in Safari", systemImage: "safari")
+                        }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .help("Share")
+                }
+            }
         } else {
             ContentUnavailableView("Invalid URL", systemImage: "link.badge.plus")
         }

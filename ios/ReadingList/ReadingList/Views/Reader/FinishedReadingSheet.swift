@@ -240,13 +240,19 @@ struct FinishedReadingSheet: View {
                 .buttonStyle(.bordered)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                Button("Do not enrich") {
-                    store.dismissFromSuggestions(linkId: link.id)
+                Button("Skip") {
                     onDismiss()
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)
+
+                Button("Do not enrich this article") {
+                    store.dismissFromSuggestions(linkId: link.id)
+                    onDismiss()
+                }
+                .font(.caption)
+                .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
