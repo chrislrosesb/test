@@ -24,6 +24,7 @@ struct LibraryView: View {
     @State private var showCurateSheet = false
     @State private var infoLink: Link? = nil
     @State private var showTagCloud = false
+    @State private var reflectLink: Link? = nil
     @AppStorage("libraryViewMode") private var viewMode: String = "cards"
 
     var navTitle: String {
@@ -188,6 +189,11 @@ struct LibraryView: View {
             ArticleDetailView(link: link)
                 .environment(vm)
         }
+        .sheet(item: $reflectLink) { link in
+            ReflectionView(link: link, vm: vm) {
+                reflectLink = nil
+            }
+        }
         .sheet(isPresented: $showTagCloud) {
             TagCloudView(tagCounts: vm.tagCounts) { tag in
                 vm.selectedTag = tag
@@ -307,6 +313,11 @@ struct LibraryView: View {
             infoLink = link
         } label: {
             Label("Info", systemImage: "info.circle")
+        }
+        Button {
+            reflectLink = link
+        } label: {
+            Label("Reflect", systemImage: "sparkles.rectangle.stack")
         }
         Divider()
         Button {

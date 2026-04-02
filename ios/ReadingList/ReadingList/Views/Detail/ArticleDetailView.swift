@@ -21,6 +21,9 @@ struct ArticleDetailView: View {
     @State private var isEditingNote = false
     @FocusState private var noteEditorFocused: Bool
     @State private var deepSavePhase: DeepSavePhase = .notSaved
+    @State private var showReflect = false
+
+    private var store: ReflectionStore { ReflectionStore.shared }
 
     init(link: Link) {
         self.link = link
@@ -152,6 +155,11 @@ struct ArticleDetailView: View {
                     noteRow
                 }
 
+                // MARK: Reflect
+                Section {
+                    reflectRow
+                }
+
                 // MARK: Full Text (on-device)
                 Section {
                     deepSaveRow
@@ -166,6 +174,11 @@ struct ArticleDetailView: View {
             .task {
                 if let existing = ArticleFullTextStore.shared.fetch(linkId: currentLink.id) {
                     deepSavePhase = .saved(wordCount: existing.wordCount, date: existing.fetchedAt)
+                }
+            }
+            .sheet(isPresented: $showReflect) {
+                ReflectionView(link: currentLink, vm: vm) {
+                    showReflect = false
                 }
             }
             .toolbar {
@@ -376,6 +389,49 @@ struct ArticleDetailView: View {
             }
             .buttonStyle(.plain)
         }
+    }
+
+    // MARK: - Reflect Row
+
+    var reflectRow: some View {
+        let score = store.depthScore(for: currentLink)
+        let reflected = store.isReflected(currentLink.id)
+        return HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .stroke(Color(.systemGray4), lineWidth: 2.5)
+                    .frame(width: 32, height: 32)
+                Circle()
+                    .trim(from: 0, to: CGFloat(score) / 100)
+                    .stroke(store.depthColor(score: score),
+                            style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 32, height: 32)
+                Text("\(score)")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(store.depthColor(score: score))
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(reflected ? "Reflected" : "Reflect on this article")
+                    .font(.body)
+                    .foregroundStyle(reflected ? .secondary : .primary)
+                Text("Depth score \(score)/100")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if !reflected {
+                Button("Start") { showReflect = true }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.teal)
+                    .controlSize(.small)
+                    .buttonStyle(.plain)
+            } else {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Color.teal)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     // MARK: - Deep Save Row
