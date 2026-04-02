@@ -10,13 +10,13 @@ struct ReflectionView: View {
     @FocusState private var inputFocused: Bool
 
     private let store = ReflectionStore.shared
-    private var scoreBeforeRef: Int
+    // Captured at first render (not init) to avoid @Observable reads during init
+    @State private var scoreBeforeRef: Int = 0
 
     init(link: Link, vm: LibraryViewModel) {
         self.link = link
         self.vm = vm
         _engine = State(initialValue: ReflectionEngine(link: link))
-        scoreBeforeRef = ReflectionStore.shared.depthScore(for: link)
     }
 
     var body: some View {
@@ -47,6 +47,7 @@ struct ReflectionView: View {
             }
         }
         .onAppear {
+            scoreBeforeRef = store.depthScore(for: link)
             engineTask = Task { await engine.start() }
         }
         .onDisappear {

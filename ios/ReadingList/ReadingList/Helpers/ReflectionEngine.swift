@@ -33,17 +33,20 @@ final class ReflectionEngine {
     var inputText: String = ""
 
     private let link: Link
-    private let questionType: ReflectionQuestionType
+    private var questionType: ReflectionQuestionType = .recall
     private var firstAnswer: String = ""
 
     init(link: Link) {
         self.link = link
-        self.questionType = ReflectionStore.shared.nextQuestionType(for: link)
+        // Do NOT call nextQuestionType here — it writes to UserDefaults and mutates
+        // @Observable state, which deadlocks if called during SwiftUI view init.
     }
 
     // MARK: - Start
 
     func start() async {
+        // Determine question type here (safe: called from async context, not init)
+        questionType = ReflectionStore.shared.nextQuestionType(for: link)
         phase = .thinking
         if #available(iOS 26, *) {
             await generateOpeningQuestion()
