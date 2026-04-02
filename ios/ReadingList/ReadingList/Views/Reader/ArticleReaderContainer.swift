@@ -63,6 +63,11 @@ struct ArticleReaderContainer: View {
                             Image(systemName: isReaderMode ? "globe" : "doc.text")
                         }
 
+                        // Reflect (direct button)
+                        Button { reflectLink = currentLink } label: {
+                            Image(systemName: "sparkles.rectangle.stack")
+                        }
+
                         // Article info (promoted from overflow)
                         Button { showInfo = true } label: {
                             Image(systemName: "info.circle")
@@ -70,10 +75,6 @@ struct ArticleReaderContainer: View {
 
                         // Overflow: everything else
                         Menu {
-                            Button { reflectLink = currentLink } label: {
-                                Label("Reflect on this Article", systemImage: "sparkles.rectangle.stack")
-                            }
-                            Divider()
                             Button { shareArticle() } label: {
                                 Label("Share", systemImage: "square.and.arrow.up")
                             }

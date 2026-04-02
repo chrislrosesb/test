@@ -229,6 +229,12 @@ struct IPadReadingPane: View {
         }
         .help(isReaderMode ? "Switch to web view" : "Switch to reader view")
 
+        // Reflect (direct button)
+        Button { reflectLink = link } label: {
+            Image(systemName: "sparkles.rectangle.stack")
+        }
+        .help("Reflect on this article")
+
         Button { withAnimation { isInfoMode.toggle() } } label: {
             Image(systemName: isInfoMode ? "info.circle.fill" : "info.circle")
                 .foregroundStyle(isInfoMode ? Color.accentColor : .primary)
@@ -290,14 +296,11 @@ struct IPadReadingPane: View {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     readerTrailingButtons(link: link, portrait: portrait)
                     Menu {
-                        Button { reflectLink = link } label: {
-                            Label("Reflect on this Article", systemImage: "sparkles.rectangle.stack")
-                        }
-                        Divider()
                         if isReaderMode {
                             Button { showTypography = true } label: {
                                 Label("Typography", systemImage: "textformat.size")
                             }
+                            Divider()
                         }
                         Button {
                             UIPasteboard.general.string = link.url

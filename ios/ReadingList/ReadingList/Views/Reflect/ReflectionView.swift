@@ -50,6 +50,10 @@ struct ReflectionView: View {
         .onAppear {
             scoreBeforeRef = store.depthScore(for: link)
             engineTask = Task { await engine.start() }
+            // Auto-save full text when reflecting (same as rating 5★ or adding a note)
+            if ArticleFullTextStore.shared.fetch(linkId: link.id) == nil {
+                Task { await autoDeepSave() }
+            }
         }
         .onDisappear {
             engineTask?.cancel()
@@ -282,6 +286,20 @@ struct ReflectionView: View {
         default:
             EmptyView()
         }
+    }
+
+    // MARK: - Auto deep save
+
+    private func autoDeepSave() async {
+        guard let rawText = try? await ArticleExtractor.extract(from: link.url) else { return }
+        let wordCount = rawText.split(separator: " ").count
+        var digest = ""
+        if #available(iOS 26, *) {
+            #if canImport(FoundationModels)
+            digest = (try? await ArticleDigestEngine.generateDigest(for: link, rawText: rawText)) ?? ""
+            #endif
+        }
+        ArticleFullTextStore.shared.save(linkId: link.id, rawText: rawText, digest: digest, wordCount: wordCount)
     }
 
     // MARK: - Save

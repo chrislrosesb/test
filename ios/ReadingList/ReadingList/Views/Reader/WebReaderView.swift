@@ -42,21 +42,41 @@ enum ReaderTheme: String, CaseIterable, Identifiable {
 
 enum ReaderFont: String, CaseIterable, Identifiable {
     var id: String { rawValue }
-    case system, serif, mono
+    case system, newYork, iowan, palatino, charter, serif, mono
 
     var label: String {
         switch self {
-        case .system: return "System"
-        case .serif: return "Serif"
-        case .mono: return "Mono"
+        case .system:   return "System"
+        case .newYork:  return "New York"
+        case .iowan:    return "Iowan Old Style"
+        case .palatino: return "Palatino"
+        case .charter:  return "Charter"
+        case .serif:    return "Georgia"
+        case .mono:     return "Mono"
         }
     }
 
     var css: String {
         switch self {
-        case .system: return "-apple-system, 'SF Pro Text', sans-serif"
-        case .serif: return "Georgia, 'New York', serif"
-        case .mono: return "'SF Mono', 'Courier New', monospace"
+        case .system:   return "-apple-system, 'SF Pro Text', sans-serif"
+        case .newYork:  return "'New York', Georgia, serif"
+        case .iowan:    return "'Iowan Old Style', Georgia, serif"
+        case .palatino: return "Palatino, Georgia, serif"
+        case .charter:  return "Charter, Georgia, serif"
+        case .serif:    return "Georgia, serif"
+        case .mono:     return "'SF Mono', 'Courier New', monospace"
+        }
+    }
+
+    var previewFont: Font {
+        switch self {
+        case .system:   return .body
+        case .newYork:  return .system(.body, design: .serif)
+        case .iowan:    return .custom("IowanOldStyle-Roman", size: 17)
+        case .palatino: return .custom("Palatino-Roman", size: 17)
+        case .charter:  return .custom("Charter-Roman", size: 17)
+        case .serif:    return .custom("Georgia", size: 17)
+        case .mono:     return .system(.body, design: .monospaced)
         }
     }
 }
@@ -160,11 +180,7 @@ struct TypographySheet: View {
     @AppStorage("readerTheme") private var themeRaw: String = ReaderTheme.dark.rawValue
     @Environment(\.dismiss) private var dismiss
 
-    private let fonts: [(ReaderFont, Font)] = [
-        (.system, .body),
-        (.serif, .custom("Georgia", size: 17)),
-        (.mono, .system(.body, design: .monospaced))
-    ]
+    private let fonts: [ReaderFont] = ReaderFont.allCases
 
     private let themes: [(ReaderTheme, String)] = [
         (.dark, "#1c1c1e"),
@@ -191,9 +207,9 @@ struct TypographySheet: View {
                 }
 
                 Section("Font") {
-                    fontRow(.system, preview: .body)
-                    fontRow(.serif, preview: .custom("Georgia", size: 17))
-                    fontRow(.mono, preview: .system(.body, design: .monospaced))
+                    ForEach(fonts) { f in
+                        fontRow(f, preview: f.previewFont)
+                    }
                 }
 
                 Section("Theme") {
@@ -290,9 +306,14 @@ struct ReaderWebView: UIViewRepresentable {
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
-        context.coordinator.fontSize = fontSize
-        context.coordinator.font = font
-        context.coordinator.theme = theme
+        let c = context.coordinator
+        let changed = c.fontSize != fontSize || c.font.id != font.id || c.theme.id != theme.id
+        c.fontSize = fontSize
+        c.font = font
+        c.theme = theme
+        if c.hasInjected && changed {
+            c.reapplyStyles(webView: webView)
+        }
     }
 
     static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
@@ -338,6 +359,25 @@ struct ReaderWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             DispatchQueue.main.async { self.onFallback() }
+        }
+
+        // Re-apply CSS styles to already-rendered HTML (called when font/theme/size changes)
+        func reapplyStyles(webView: WKWebView) {
+            let js = """
+            (function() {
+                var b = document.body;
+                if (!b) return;
+                b.style.fontFamily = '\(font.css)';
+                b.style.fontSize = '\(Int(fontSize))px';
+                b.style.background = '\(theme.background)';
+                b.style.color = '\(theme.text)';
+                var links = document.querySelectorAll('a');
+                for (var i = 0; i < links.length; i++) {
+                    links[i].style.color = '\(theme.link)';
+                }
+            })();
+            """
+            webView.evaluateJavaScript(js, completionHandler: nil)
         }
 
         // Receive extraction result from JS
