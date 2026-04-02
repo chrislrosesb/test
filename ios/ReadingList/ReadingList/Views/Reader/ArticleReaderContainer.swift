@@ -140,12 +140,13 @@ struct ArticleReaderContainer: View {
                     fontSize: fontSize,
                     font: font,
                     theme: theme,
-                    onFallback: { withAnimation { isReaderMode = false } }
+                    onFallback: { withAnimation { isReaderMode = false } },
+                    linkId: currentLink.id
                 )
                 .id(currentLink.id + "reader")
                 .ignoresSafeArea(edges: .bottom)
             } else {
-                WebView(url: webURL)
+                WebView(url: webURL, linkId: currentLink.id)
                     .id(currentLink.id + "web")
                     .ignoresSafeArea(edges: .bottom)
             }

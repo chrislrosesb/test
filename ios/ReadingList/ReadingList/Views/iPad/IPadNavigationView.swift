@@ -278,11 +278,12 @@ struct IPadReadingPane: View {
                         fontSize: fontSize,
                         font: readerFont,
                         theme: readerTheme,
-                        onFallback: { withAnimation { isReaderMode = false } }
+                        onFallback: { withAnimation { isReaderMode = false } },
+                        linkId: link.id
                     )
                     .id(link.id + "reader")
                 } else {
-                    WebView(url: url)
+                    WebView(url: url, linkId: link.id)
                         .id(link.id)
                 }
             }

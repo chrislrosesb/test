@@ -277,30 +277,35 @@ struct ReaderWebView: UIViewRepresentable {
     let font: ReaderFont
     let theme: ReaderTheme
     let onFallback: () -> Void
+    var linkId: String = ""
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(fontSize: fontSize, font: font, theme: theme, onFallback: onFallback)
+        Coordinator(fontSize: fontSize, font: font, theme: theme, onFallback: onFallback, linkId: linkId)
     }
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
 
-        // Inject Readability at document end so it's available before we trigger extraction
         let script = WKUserScript(
             source: ReadabilityJS.source,
             injectionTime: .atDocumentEnd,
             forMainFrameOnly: true
         )
         config.userContentController.addUserScript(script)
-        // Message handler receives extraction result — more reliable than evaluateJavaScript
-        // return values on Mac Catalyst
         config.userContentController.add(context.coordinator, name: "readability")
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = false
         context.coordinator.webView = webView
+        // Save position when app backgrounds
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(Coordinator.savePosition),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
         webView.load(URLRequest(url: url))
         return webView
     }
@@ -318,6 +323,8 @@ struct ReaderWebView: UIViewRepresentable {
 
     static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "readability")
+        coordinator.savePosition()
+        NotificationCenter.default.removeObserver(coordinator)
     }
 
     class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
@@ -325,14 +332,21 @@ struct ReaderWebView: UIViewRepresentable {
         var font: ReaderFont
         var theme: ReaderTheme
         let onFallback: () -> Void
+        let linkId: String
         weak var webView: WKWebView?
         var hasInjected = false
 
-        init(fontSize: Double, font: ReaderFont, theme: ReaderTheme, onFallback: @escaping () -> Void) {
+        init(fontSize: Double, font: ReaderFont, theme: ReaderTheme, onFallback: @escaping () -> Void, linkId: String) {
             self.fontSize = fontSize
             self.font = font
             self.theme = theme
             self.onFallback = onFallback
+            self.linkId = linkId
+        }
+
+        @objc func savePosition() {
+            guard let wv = webView else { return }
+            ScrollPositionStore.shared.save(linkId: linkId, readerMode: true, y: wv.scrollView.contentOffset.y)
         }
 
         // Called when page finishes loading — trigger extraction via JS
@@ -398,6 +412,13 @@ struct ReaderWebView: UIViewRepresentable {
             DispatchQueue.main.async {
                 self.hasInjected = true
                 self.webView?.loadHTMLString(html, baseURL: nil)
+                // Restore saved position after the HTML renders
+                let saved = ScrollPositionStore.shared.get(linkId: self.linkId, readerMode: true)
+                if saved > 50 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                        self?.webView?.evaluateJavaScript("window.scrollTo(0, \(saved))", completionHandler: nil)
+                    }
+                }
             }
         }
 
@@ -468,6 +489,7 @@ enum SharedWebConfig {
 
 struct WebView: UIViewRepresentable {
     let url: URL
+    var linkId: String = ""
 
     func makeCoordinator() -> WebViewCoordinator {
         WebViewCoordinator()
@@ -477,7 +499,16 @@ struct WebView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: SharedWebConfig.makeConfiguration())
         webView.allowsBackForwardNavigationGestures = true
         webView.uiDelegate = context.coordinator
+        webView.navigationDelegate = context.coordinator
         context.coordinator.parentWebView = webView
+        context.coordinator.linkId = linkId
+        // Save position when app backgrounds
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(WebViewCoordinator.savePosition),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
         return webView
     }
 
@@ -486,11 +517,33 @@ struct WebView: UIViewRepresentable {
             webView.load(URLRequest(url: url))
         }
     }
+
+    static func dismantleUIView(_ webView: WKWebView, coordinator: WebViewCoordinator) {
+        // Save position when article is closed / swapped out
+        coordinator.savePosition()
+        NotificationCenter.default.removeObserver(coordinator)
+    }
 }
 
-/// Handles popups (target="_blank" links, OAuth windows)
-class WebViewCoordinator: NSObject, WKUIDelegate {
+/// Handles popups (target="_blank" links, OAuth windows) + scroll position persistence
+class WebViewCoordinator: NSObject, WKUIDelegate, WKNavigationDelegate {
     weak var parentWebView: WKWebView?
+    var linkId: String = ""
+
+    @objc func savePosition() {
+        guard let wv = parentWebView else { return }
+        ScrollPositionStore.shared.save(linkId: linkId, readerMode: false, y: wv.scrollView.contentOffset.y)
+    }
+
+    // Restore saved scroll position after page finishes loading.
+    // Use a 1 s delay to let JS-rendered pages finish painting.
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        let saved = ScrollPositionStore.shared.get(linkId: linkId, readerMode: false)
+        guard saved > 50 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak webView] in
+            webView?.evaluateJavaScript("window.scrollTo(0, \(saved))", completionHandler: nil)
+        }
+    }
 
     func webView(
         _ webView: WKWebView,
@@ -498,7 +551,6 @@ class WebViewCoordinator: NSObject, WKUIDelegate {
         for navigationAction: WKNavigationAction,
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
-        // Load popup URLs in the same webview
         if navigationAction.targetFrame == nil || !navigationAction.targetFrame!.isMainFrame {
             if let url = navigationAction.request.url {
                 webView.load(URLRequest(url: url))
