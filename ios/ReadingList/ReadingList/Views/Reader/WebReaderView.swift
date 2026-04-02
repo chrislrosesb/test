@@ -299,13 +299,14 @@ struct ReaderWebView: UIViewRepresentable {
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = false
         context.coordinator.webView = webView
-        // Save position when app backgrounds
-        NotificationCenter.default.addObserver(
-            context.coordinator,
-            selector: #selector(Coordinator.savePosition),
-            name: UIApplication.didEnterBackgroundNotification,
-            object: nil
-        )
+
+        // KVO scroll observation (same pattern as WebView — don't set scrollView.delegate)
+        context.coordinator.scrollObservation = webView.scrollView.observe(
+            \.contentOffset, options: [.new]
+        ) { [weak c = context.coordinator] scrollView, _ in
+            c?.schedulePositionSave(y: Double(scrollView.contentOffset.y))
+        }
+
         webView.load(URLRequest(url: url))
         return webView
     }
@@ -323,8 +324,10 @@ struct ReaderWebView: UIViewRepresentable {
 
     static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "readability")
-        coordinator.savePosition()
-        NotificationCenter.default.removeObserver(coordinator)
+        let y = Double(webView.scrollView.contentOffset.y)
+        ScrollPositionStore.shared.save(linkId: coordinator.linkId, readerMode: true, y: y)
+        coordinator.scrollObservation?.invalidate()
+        coordinator.saveTimer?.invalidate()
     }
 
     class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
@@ -335,6 +338,8 @@ struct ReaderWebView: UIViewRepresentable {
         let linkId: String
         weak var webView: WKWebView?
         var hasInjected = false
+        var scrollObservation: NSKeyValueObservation?
+        var saveTimer: Timer?
 
         init(fontSize: Double, font: ReaderFont, theme: ReaderTheme, onFallback: @escaping () -> Void, linkId: String) {
             self.fontSize = fontSize
@@ -344,9 +349,12 @@ struct ReaderWebView: UIViewRepresentable {
             self.linkId = linkId
         }
 
-        @objc func savePosition() {
-            guard let wv = webView else { return }
-            ScrollPositionStore.shared.save(linkId: linkId, readerMode: true, y: wv.scrollView.contentOffset.y)
+        func schedulePositionSave(y: Double) {
+            saveTimer?.invalidate()
+            saveTimer = Timer.scheduledTimer(withTimeInterval: 0.6, repeats: false) { [weak self] _ in
+                guard let self else { return }
+                ScrollPositionStore.shared.save(linkId: self.linkId, readerMode: true, y: y)
+            }
         }
 
         // Called when page finishes loading — trigger extraction via JS
@@ -496,19 +504,22 @@ struct WebView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> WKWebView {
+        let c = context.coordinator
+        c.linkId = linkId
+
         let webView = WKWebView(frame: .zero, configuration: SharedWebConfig.makeConfiguration())
         webView.allowsBackForwardNavigationGestures = true
-        webView.uiDelegate = context.coordinator
-        webView.navigationDelegate = context.coordinator
-        context.coordinator.parentWebView = webView
-        context.coordinator.linkId = linkId
-        // Save position when app backgrounds
-        NotificationCenter.default.addObserver(
-            context.coordinator,
-            selector: #selector(WebViewCoordinator.savePosition),
-            name: UIApplication.didEnterBackgroundNotification,
-            object: nil
-        )
+        webView.uiDelegate = c
+        webView.navigationDelegate = c
+
+        // KVO on contentOffset — Apple's recommended way to observe WKWebView scrolling
+        // (setting scrollView.delegate directly is explicitly forbidden by Apple)
+        c.scrollObservation = webView.scrollView.observe(
+            \.contentOffset, options: [.new]
+        ) { [weak c] scrollView, _ in
+            c?.schedulePositionSave(y: Double(scrollView.contentOffset.y))
+        }
+
         return webView
     }
 
@@ -519,28 +530,37 @@ struct WebView: UIViewRepresentable {
     }
 
     static func dismantleUIView(_ webView: WKWebView, coordinator: WebViewCoordinator) {
-        // Save position when article is closed / swapped out
-        coordinator.savePosition()
-        NotificationCenter.default.removeObserver(coordinator)
+        // Final authoritative save using the webView directly (coordinator.parentWebView
+        // is a weak ref that may already be nil at this point)
+        let y = Double(webView.scrollView.contentOffset.y)
+        ScrollPositionStore.shared.save(linkId: coordinator.linkId, readerMode: false, y: y)
+        coordinator.scrollObservation?.invalidate()
+        coordinator.saveTimer?.invalidate()
     }
 }
 
 /// Handles popups (target="_blank" links, OAuth windows) + scroll position persistence
 class WebViewCoordinator: NSObject, WKUIDelegate, WKNavigationDelegate {
-    weak var parentWebView: WKWebView?
     var linkId: String = ""
+    var scrollObservation: NSKeyValueObservation?
+    var saveTimer: Timer?
 
-    @objc func savePosition() {
-        guard let wv = parentWebView else { return }
-        ScrollPositionStore.shared.save(linkId: linkId, readerMode: false, y: wv.scrollView.contentOffset.y)
+    // Debounce scroll saves — fires 0.6 s after the user stops scrolling
+    func schedulePositionSave(y: Double) {
+        saveTimer?.invalidate()
+        saveTimer = Timer.scheduledTimer(withTimeInterval: 0.6, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            ScrollPositionStore.shared.save(linkId: self.linkId, readerMode: false, y: y)
+        }
     }
 
     // Restore saved scroll position after page finishes loading.
-    // Use a 1 s delay to let JS-rendered pages finish painting.
+    // Try immediately and again after 1.5 s for JS-rendered pages.
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         let saved = ScrollPositionStore.shared.get(linkId: linkId, readerMode: false)
         guard saved > 50 else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak webView] in
+        webView.evaluateJavaScript("window.scrollTo(0, \(saved))", completionHandler: nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak webView] in
             webView?.evaluateJavaScript("window.scrollTo(0, \(saved))", completionHandler: nil)
         }
     }
