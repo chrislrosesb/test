@@ -45,9 +45,20 @@ final class ReflectionEngine {
     // MARK: - Start
 
     func start() async {
-        // Determine question type here (safe: called from async context, not init)
         questionType = ReflectionStore.shared.nextQuestionType(for: link)
         phase = .thinking
+
+        // Ensure we have the article's full text before generating questions.
+        // This makes questions specific to what the article actually says.
+        // If extraction was already triggered by autoDeepSave in ReflectionView,
+        // the fetch() hit below means we don't extract twice.
+        if ArticleFullTextStore.shared.fetch(linkId: link.id) == nil {
+            if let rawText = try? await ArticleExtractor.extract(from: link.url) {
+                let wc = rawText.split(separator: " ").count
+                ArticleFullTextStore.shared.save(linkId: link.id, rawText: rawText, digest: "", wordCount: wc)
+            }
+        }
+
         if #available(iOS 26, *) {
             await generateOpeningQuestion()
         } else {
@@ -178,13 +189,18 @@ final class ReflectionEngine {
     private var articleContext: String {
         var parts: [String] = []
         parts.append("\"\(link.title ?? link.url)\" (\(link.domain ?? "unknown"))")
-        if let tags = link.tags,     !tags.isEmpty   { parts.append("Tags: \(tags)") }
-        if let cat  = link.category, !cat.isEmpty    { parts.append("Category: \(cat)") }
-        if let stars = link.stars,    stars > 0      { parts.append("Rated \(stars)/5 stars") }
-        if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty {
-            parts.append("Summary: \(String(ft.digest.prefix(350)))")
+        if let tags = link.tags,  !tags.isEmpty  { parts.append("Tags: \(tags)") }
+        if let cat = link.category, !cat.isEmpty { parts.append("Category: \(cat)") }
+        if let stars = link.stars, stars > 0     { parts.append("Rated \(stars)/5 stars") }
+
+        if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.rawText.isEmpty {
+            // Use the full article text (up to 2500 chars) so questions are grounded
+            // in what the article actually argues, not just OG metadata.
+            parts.append("Article text:\n\(String(ft.rawText.prefix(2500)))")
+        } else if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty {
+            parts.append("Summary: \(ft.digest)")
         } else if let s = link.summary, !s.isEmpty {
-            parts.append("Summary: \(String(s.prefix(250)))")
+            parts.append("Summary: \(String(s.prefix(300)))")
         }
         return parts.joined(separator: "\n")
     }
