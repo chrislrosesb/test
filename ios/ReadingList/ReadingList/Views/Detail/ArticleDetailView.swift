@@ -177,9 +177,7 @@ struct ArticleDetailView: View {
                 }
             }
             .sheet(isPresented: $showReflect) {
-                ReflectionView(link: currentLink, vm: vm) {
-                    showReflect = false
-                }
+                ReflectionView(link: currentLink, vm: vm)
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

@@ -114,9 +114,7 @@ struct ArticleReaderContainer: View {
             })
         }
         .sheet(item: $reflectLink) { link in
-            ReflectionView(link: link, vm: vm) {
-                reflectLink = nil
-            }
+            ReflectionView(link: link, vm: vm)
         }
         .sheet(isPresented: $showSafariView) {
             if let url = URL(string: currentLink.url) {

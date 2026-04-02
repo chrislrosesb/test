@@ -58,9 +58,7 @@ struct ReflectionQueueView: View {
             .background(Color(.systemGroupedBackground))
         }
         .sheet(item: $reflectLink) { link in
-            ReflectionView(link: link, vm: vm) {
-                reflectLink = nil
-            }
+            ReflectionView(link: link, vm: vm)
         }
     }
 

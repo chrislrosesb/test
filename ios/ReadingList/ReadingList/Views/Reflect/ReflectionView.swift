@@ -3,18 +3,17 @@ import SwiftUI
 struct ReflectionView: View {
     let link: Link
     let vm: LibraryViewModel
-    let onDismiss: () -> Void
 
+    @Environment(\.dismiss) private var dismiss
     @State private var engine: ReflectionEngine
     @FocusState private var inputFocused: Bool
 
     private let store = ReflectionStore.shared
     private var scoreBeforeRef: Int
 
-    init(link: Link, vm: LibraryViewModel, onDismiss: @escaping () -> Void) {
+    init(link: Link, vm: LibraryViewModel) {
         self.link = link
         self.vm = vm
-        self.onDismiss = onDismiss
         _engine = State(initialValue: ReflectionEngine(link: link))
         scoreBeforeRef = ReflectionStore.shared.depthScore(for: link)
     }
@@ -34,7 +33,7 @@ struct ReflectionView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Close") {
                         engine.inputText = ""
-                        onDismiss()
+                        dismiss()
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -264,7 +263,7 @@ struct ReflectionView: View {
             await vm.updateNote(link: link, note: note)
             store.markReflected(linkId: link.id)
             Haptics.success()
-            onDismiss()
+            dismiss()
         }
     }
 }

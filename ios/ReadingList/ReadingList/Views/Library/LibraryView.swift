@@ -190,9 +190,7 @@ struct LibraryView: View {
                 .environment(vm)
         }
         .sheet(item: $reflectLink) { link in
-            ReflectionView(link: link, vm: vm) {
-                reflectLink = nil
-            }
+            ReflectionView(link: link, vm: vm)
         }
         .sheet(isPresented: $showTagCloud) {
             TagCloudView(tagCounts: vm.tagCounts) { tag in
