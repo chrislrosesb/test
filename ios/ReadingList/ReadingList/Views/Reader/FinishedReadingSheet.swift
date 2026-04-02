@@ -240,7 +240,8 @@ struct FinishedReadingSheet: View {
                 .buttonStyle(.bordered)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                Button("Skip") {
+                Button("Do not enrich") {
+                    store.dismissFromSuggestions(linkId: link.id)
                     onDismiss()
                 }
                 .font(.subheadline)
