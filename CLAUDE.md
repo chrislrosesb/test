@@ -143,7 +143,31 @@ All pages have OG + Twitter Card meta tags. `og-image.png` + `og-reading-list.pn
 
 **Info mode:** Tapping ⓘ in the reader toolbar swaps the web view for `ArticleDetailView` (full metadata). Tap again to return to web view. Controlled by `isInfoMode` state in `IPadReadingPane`.
 
+**Reader toolbar (updated):** Done ✓ · Reader/Web toggle (doc.text ↔ globe) · Info ⓘ · Fullscreen ↔ · Share ↗ menu (Reflect, Typography when in reader mode, Copy URL, Open in Safari)
+
 **Enrich All:** Only visible as a `✦ sparkles` toolbar button when `vm.unenrichedLinks.count > 0 && !vm.isEnrichingAll` (iOS 26+ only). Not shown in any menu.
+
+### CRITICAL: iPhone ≠ iPad — Always update BOTH
+
+The iPhone and iPad use **completely separate view hierarchies**. Features added to one do NOT appear on the other.
+
+| Feature area | iPhone file | iPad file |
+|---|---|---|
+| Article reading | `ArticleReaderContainer.swift` | `IPadNavigationView.swift` → `IPadReadingPane` |
+| Reader toolbar buttons | `ArticleReaderContainer` toolbar | `IPadReadingPane.readerTrailingButtons()` |
+| Reader content (web/reader mode) | `isReaderMode` in `ArticleReaderContainer` | `isReaderMode` in `IPadReadingPane` |
+| Library list/grid | `LibraryView.swift` | `IPadCardGrid` / `IPadArticleList` in `IPadNavigationView.swift` |
+| Hamburger menu items | `LibraryView` menu | iPad sidebar items in `IPadNavigationView` |
+| Sheets from reading | `.sheet` on `ArticleReaderContainer` | `.sheet` on `IPadReadingPane` body |
+
+**Rule:** Any time you add a button, sheet, state variable, or feature to the article reader or library on iPhone, immediately check whether `IPadReadingPane` and/or `IPadCardGrid`/`IPadArticleList` need the same change. They usually do.
+
+**Checklist when adding a reader feature:**
+1. Add to `ArticleReaderContainer` toolbar/menu (iPhone)
+2. Add matching state var to `IPadReadingPane`
+3. Add button to `IPadReadingPane.readerTrailingButtons()` or the share overflow `Menu`
+4. Wire any new sheets on the `IPadReadingPane` body (`.sheet` / `.fullScreenCover`)
+5. If the feature needs AppStorage settings (e.g. font, theme), add them to both structs
 
 ### Key File Structure
 ```
