@@ -440,31 +440,211 @@ struct NotesReviewView: View {
     }
 }
 
+// MARK: - Note segments
+
+private enum NoteSegment {
+    case plain(String)
+    case exchange(question: String, answer: String)
+}
+
+private func parseNoteSegments(_ note: String) -> [NoteSegment] {
+    let divider = "\n\n---\n\n"
+    let parts = note.contains(divider)
+        ? note.components(separatedBy: divider)
+        : [note]
+
+    var segments: [NoteSegment] = []
+    for part in parts {
+        let trimmed = part.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { continue }
+
+        if trimmed.hasPrefix("Q: ") || trimmed.contains("\n\nQ: ") {
+            for block in trimmed.components(separatedBy: "\n\n") {
+                let b = block.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard b.hasPrefix("Q: ") else {
+                    if !b.isEmpty { segments.append(.plain(b)) }
+                    continue
+                }
+                let lines = b.components(separatedBy: "\n")
+                let q = String(lines[0].dropFirst(3))
+                let a = lines.count > 1 && lines[1].hasPrefix("A: ")
+                    ? String(lines[1].dropFirst(3))
+                    : ""
+                if !q.isEmpty { segments.append(.exchange(question: q, answer: a)) }
+            }
+        } else {
+            segments.append(.plain(trimmed))
+        }
+    }
+    return segments
+}
+
 // MARK: - Note-First Card
 
 private struct NoteReviewCardView: View {
     let link: Link
+    @State private var expanded = false
+
+    private var store: ReflectionStore { ReflectionStore.shared }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            cardHeader
+            noteContent
+        }
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(Color(.separator).opacity(0.4), lineWidth: 0.5)
+        )
+    }
+
+    // MARK: Header
+
+    var cardHeader: some View {
+        HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(link.title ?? link.url)
-                    .font(.headline)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
                     .lineLimit(2)
-                Text(link.domain ?? "")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Text(link.domain ?? "")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let savedAt = link.savedAt {
+                        Text("·")
+                            .foregroundStyle(.tertiary)
+                            .font(.caption)
+                        Text(savedAt.timeAgo)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-
-            Divider()
-
-            Text(link.note?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "")
-                .font(.body)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+            Spacer()
+            depthRing
         }
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    var depthRing: some View {
+        let score = store.depthScore(for: link)
+        let color = store.depthColor(score: score)
+        return ZStack {
+            Circle()
+                .stroke(Color(.systemGray5), lineWidth: 2.5)
+            Circle()
+                .trim(from: 0, to: CGFloat(score) / 100)
+                .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Text("\(score)")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(color)
+        }
+        .frame(width: 30, height: 30)
+    }
+
+    // MARK: Content
+
+    @ViewBuilder
+    var noteContent: some View {
+        let note = link.note?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let segments = parseNoteSegments(note)
+
+        if segments.isEmpty {
+            EmptyView()
+        } else {
+            Divider().padding(.horizontal, 14)
+
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(Array(segments.enumerated()), id: \.offset) { _, seg in
+                    switch seg {
+                    case .plain(let text):
+                        plainBlock(text)
+                    case .exchange(let q, let a):
+                        exchangeBlock(question: q, answer: a)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+        }
+    }
+
+    // MARK: Plain block — journal-style quote
+
+    func plainBlock(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Color.indigo.opacity(0.5))
+                .frame(width: 3)
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .lineLimit(expanded ? nil : 4)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 4)
+        .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } }
+    }
+
+    // MARK: Exchange block — AI question + user answer
+
+    func exchangeBlock(question: String, answer: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // AI question
+            HStack(alignment: .top, spacing: 0) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.teal)
+                    .frame(width: 3)
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 8, weight: .semibold))
+                        Text("AI")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .foregroundStyle(Color.teal)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Color.teal.opacity(0.12), in: Capsule())
+
+                    Text(question)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .italic()
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.teal.opacity(0.06))
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            // User answer
+            if !answer.isEmpty {
+                HStack(alignment: .top, spacing: 0) {
+                    Spacer().frame(width: 28)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("You")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(Color(.systemGray5), in: Capsule())
+                        Text(answer)
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                }
+            }
+        }
     }
 }
