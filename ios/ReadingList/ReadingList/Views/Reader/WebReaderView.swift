@@ -59,10 +59,10 @@ enum ReaderFont: String, CaseIterable, Identifiable {
     var css: String {
         switch self {
         case .system:   return "-apple-system, 'SF Pro Text', sans-serif"
-        case .newYork:  return "'New York', Georgia, serif"
-        case .iowan:    return "'Iowan Old Style', Georgia, serif"
-        case .palatino: return "Palatino, Georgia, serif"
-        case .charter:  return "Charter, Georgia, serif"
+        case .newYork:  return "ui-serif, Georgia, serif"
+        case .iowan:    return "'Iowan Old Style', ui-serif, Georgia, serif"
+        case .palatino: return "'Palatino-Roman', Palatino, Georgia, serif"
+        case .charter:  return "'Charter-Roman', Charter, Georgia, serif"
         case .serif:    return "Georgia, serif"
         case .mono:     return "'SF Mono', 'Courier New', monospace"
         }
