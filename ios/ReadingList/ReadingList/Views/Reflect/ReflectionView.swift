@@ -6,6 +6,7 @@ struct ReflectionView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var engine: ReflectionEngine
+    @State private var engineTask: Task<Void, Never>? = nil
     @FocusState private var inputFocused: Bool
 
     private let store = ReflectionStore.shared
@@ -45,7 +46,13 @@ struct ReflectionView: View {
                 }
             }
         }
-        .task { await engine.start() }
+        .onAppear {
+            engineTask = Task { await engine.start() }
+        }
+        .onDisappear {
+            engineTask?.cancel()
+            engineTask = nil
+        }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
@@ -259,11 +266,10 @@ struct ReflectionView: View {
 
     private func saveAndClose() {
         guard case .done(let note) = engine.phase else { return }
-        Task {
-            await vm.updateNote(link: link, note: note)
-            store.markReflected(linkId: link.id)
-            Haptics.success()
-            dismiss()
-        }
+        store.markReflected(linkId: link.id)
+        Haptics.success()
+        dismiss()
+        // Fire-and-forget note update — dismiss first so the sheet is gone
+        Task { await vm.updateNote(link: link, note: note) }
     }
 }
