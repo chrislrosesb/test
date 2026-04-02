@@ -502,31 +502,56 @@ private struct NoteReviewCardView: View {
     // MARK: Header
 
     var cardHeader: some View {
-        HStack(alignment: .center, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(link.title ?? link.url)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .lineLimit(2)
-                HStack(spacing: 4) {
-                    Text(link.domain ?? "")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let savedAt = link.savedAt {
-                        Text("·")
-                            .foregroundStyle(.tertiary)
-                            .font(.caption)
-                        Text(savedAt.timeAgo)
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+        let colors = domainGradient(for: link.domain)
+        return VStack(alignment: .leading, spacing: 0) {
+            // Domain-colored gradient bar
+            LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
+                .frame(height: 5)
+
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(link.title ?? link.url)
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(spacing: 6) {
+                        if let domain = link.domain {
+                            Text(domain)
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(
+                                    LinearGradient(colors: colors.map { $0.opacity(0.85) },
+                                                   startPoint: .leading, endPoint: .trailing),
+                                    in: Capsule()
+                                )
+                        }
+                        if let category = link.category, !category.isEmpty {
+                            Text(category)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(Color(.systemGray5), in: Capsule())
+                        }
+                        if let savedAt = link.savedAt {
+                            Text(savedAt.timeAgo)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                 }
+                Spacer()
+                depthRing
             }
-            Spacer()
-            depthRing
+            .padding(.horizontal, 14)
+            .padding(.top, 12)
+            .padding(.bottom, 12)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
     }
 
     var depthRing: some View {
