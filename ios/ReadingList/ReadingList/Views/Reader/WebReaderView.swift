@@ -253,7 +253,7 @@ struct TypographySheet: View {
     }
 }
 
-// MARK: - Reader Web View (Readability injection)
+// MARK: - Reader Web View (Readability-based extraction)
 
 struct ReaderWebView: UIViewRepresentable {
     let url: URL
@@ -269,10 +269,21 @@ struct ReaderWebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
+
+        // Inject Readability at document end so it's available before we trigger extraction
+        let script = WKUserScript(
+            source: ReadabilityJS.source,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true
+        )
+        config.userContentController.addUserScript(script)
+        // Message handler receives extraction result — more reliable than evaluateJavaScript
+        // return values on Mac Catalyst
+        config.userContentController.add(context.coordinator, name: "readability")
+
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = false
-        webView.scrollView.bounces = true
         context.coordinator.webView = webView
         webView.load(URLRequest(url: url))
         return webView
@@ -284,7 +295,11 @@ struct ReaderWebView: UIViewRepresentable {
         context.coordinator.theme = theme
     }
 
-    class Coordinator: NSObject, WKNavigationDelegate {
+    static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "readability")
+    }
+
+    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var fontSize: Double
         var font: ReaderFont
         var theme: ReaderTheme
@@ -299,41 +314,56 @@ struct ReaderWebView: UIViewRepresentable {
             self.onFallback = onFallback
         }
 
+        // Called when page finishes loading — trigger extraction via JS
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             guard !hasInjected else { return }
-            // Wait briefly for JS-rendered pages
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.extractAndRender(webView: webView)
-            }
+            // Give JS-rendered pages a moment to settle, then call extractArticle()
+            // and route the result through the message handler (reliable on Mac Catalyst)
+            let trigger = """
+            setTimeout(function() {
+                var result = window.extractArticle ? window.extractArticle() : null;
+                if (result) {
+                    window.webkit.messageHandlers.readability.postMessage(result);
+                } else {
+                    window.webkit.messageHandlers.readability.postMessage('{"success":false,"reason":"not_ready"}');
+                }
+            }, 900);
+            """
+            webView.evaluateJavaScript(trigger, completionHandler: nil)
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             DispatchQueue.main.async { self.onFallback() }
         }
 
-        private func extractAndRender(webView: WKWebView) {
-            let js = Self.extractionJS
-            webView.evaluateJavaScript(js) { [weak self] result, error in
-                guard let self else { return }
-                guard let jsonString = result as? String,
-                      let data = jsonString.data(using: .utf8),
-                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: String],
-                      let content = json["content"],
-                      !content.isEmpty else {
-                    DispatchQueue.main.async { self.onFallback() }
-                    return
-                }
-                let title = json["title"] ?? ""
-                let html = self.buildHTML(title: title, content: content)
-                DispatchQueue.main.async {
-                    self.hasInjected = true
-                    webView.loadHTMLString(html, baseURL: webView.url)
-                }
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            DispatchQueue.main.async { self.onFallback() }
+        }
+
+        // Receive extraction result from JS
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == "readability",
+                  let jsonString = message.body as? String,
+                  let data = jsonString.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let success = json["success"] as? Bool, success,
+                  let content = json["content"] as? String,
+                  !content.isEmpty else {
+                DispatchQueue.main.async { self.onFallback() }
+                return
+            }
+            let title = json["title"] as? String ?? ""
+            let byline = json["byline"] as? String ?? ""
+            let html = buildHTML(title: title, byline: byline, content: content)
+            DispatchQueue.main.async {
+                self.hasInjected = true
+                self.webView?.loadHTMLString(html, baseURL: nil)
             }
         }
 
-        private func buildHTML(title: String, content: String) -> String {
-            """
+        private func buildHTML(title: String, byline: String, content: String) -> String {
+            let bylineHTML = byline.isEmpty ? "" : "<p class=\"reader-byline\">\(byline)</p>"
+            return """
             <!DOCTYPE html>
             <html>
             <head>
@@ -351,7 +381,8 @@ struct ReaderWebView: UIViewRepresentable {
                 background: \(theme.background);
                 color: \(theme.text);
             }
-            h1.reader-title { font-size: 1.45em; line-height: 1.3; margin: 0 0 20px; }
+            h1.reader-title { font-size: 1.45em; line-height: 1.3; margin: 0 0 6px; }
+            p.reader-byline { font-size: 0.82em; opacity: 0.55; margin: 0 0 24px; }
             h2 { font-size: 1.25em; line-height: 1.35; }
             h3 { font-size: 1.1em; }
             p { margin: 0 0 1em; }
@@ -369,63 +400,12 @@ struct ReaderWebView: UIViewRepresentable {
             </head>
             <body>
             <h1 class="reader-title">\(title)</h1>
+            \(bylineHTML)
             \(content)
             </body>
             </html>
             """
         }
-
-        // Inline JS: strip noise, find main content, return JSON
-        static let extractionJS = """
-        (function() {
-            try {
-                // Remove noise elements
-                var noiseSelectors = [
-                    'script','style','noscript','nav','header','footer','aside',
-                    '[class*="sidebar"]','[class*="navigation"]','[class*="menu-"]',
-                    '[class*="header"]','[class*="footer"]','[class*="comments"]',
-                    '[class*="advertisement"]','[class*="-ad-"]','[id*="sidebar"]',
-                    '[id*="navigation"]','[id*="header"]','[id*="footer"]',
-                    'iframe','.related','.recommended','[class*="social"]',
-                    '[class*="share-"]','[class*="promo"]','[class*="cookie"]',
-                    '[class*="subscribe"]','[class*="newsletter"]','[class*="popup"]'
-                ];
-                document.querySelectorAll(noiseSelectors.join(',')).forEach(function(el){el.remove();});
-
-                // Find main content
-                var selectors = [
-                    '[itemprop="articleBody"]','article','[role="main"]','main',
-                    '.post-content','.article-content','.entry-content',
-                    '.article-body','.story-body','.post-body','#article-body',
-                    '.content-body','.article__body','.ArticleBody',
-                    '#content','.content','.post','.single-post'
-                ];
-                var content = null;
-                for (var i = 0; i < selectors.length; i++) {
-                    var el = document.querySelector(selectors[i]);
-                    if (el && (el.innerText || '').trim().length > 150) {
-                        content = el; break;
-                    }
-                }
-                if (!content) content = document.body;
-
-                // Remove inner noise
-                var innerNoise = content.querySelectorAll(
-                    'script,style,[class*="related"],[class*="recommend"],[class*="promo"],[class*="share"]'
-                );
-                innerNoise.forEach(function(el){el.remove();});
-
-                var title = '';
-                var h1 = document.querySelector('h1');
-                if (h1) { title = h1.innerText.trim(); h1.remove(); }
-                else { title = document.title; }
-
-                return JSON.stringify({ title: title, content: content.innerHTML });
-            } catch(e) {
-                return JSON.stringify({ title: document.title, content: document.body.innerHTML });
-            }
-        })()
-        """
     }
 }
 
