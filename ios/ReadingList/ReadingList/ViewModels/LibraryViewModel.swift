@@ -95,9 +95,12 @@ final class LibraryViewModel {
             var parts = "\(i + 1). \"\(link.title ?? link.url)\" (\(link.domain ?? "unknown"))"
             if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty {
                 parts += "\n   \(ft.digest)"
+            } else if let d = link.digest, !d.isEmpty {
+                parts += "\n   \(d)"
             } else if let summary = link.summary, !summary.isEmpty {
                 parts += "\n   Summary: \(summary)"
-            } else if let note = link.note, !note.isEmpty {
+            }
+            if let note = link.note, !note.isEmpty {
                 parts += "\n   My note: \(note)"
             }
             return parts
@@ -200,6 +203,8 @@ final class LibraryViewModel {
             parts += "\n   My note: \(link.note!.trimmingCharacters(in: .whitespacesAndNewlines))"
             if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty {
                 parts += "\n   Article digest: \(ft.digest)"
+            } else if let d = link.digest, !d.isEmpty {
+                parts += "\n   Article digest: \(d)"
             } else if let summary = link.summary, !summary.isEmpty {
                 parts += "\n   Summary: \(summary)"
             }

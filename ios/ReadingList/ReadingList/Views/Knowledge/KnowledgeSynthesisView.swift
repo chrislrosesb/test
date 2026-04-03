@@ -385,10 +385,13 @@ struct KnowledgeSynthesisView: View {
             var contextParts: [String] = []
             if let ft = fullText, !ft.digest.isEmpty {
                 contextParts.append(ft.digest)
+            } else if let d = link.digest, !d.isEmpty {
+                contextParts.append(d)
+                score += 2 // Supabase-synced digest is nearly as good as on-device
             } else {
                 if let s = link.summary, !s.isEmpty { contextParts.append("Summary: \(s)") }
-                if let n = link.note, !n.isEmpty { contextParts.append("My note: \(n)") }
             }
+            if let n = link.note, !n.isEmpty { contextParts.append("My note: \(n)") }
 
             scored.append((link, score, contextParts.joined(separator: "\n")))
         }
