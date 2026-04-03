@@ -186,8 +186,8 @@ final class PodcastDigestEngine: NSObject {
                 "speechConfig": [
                     "multiSpeakerVoiceConfig": [
                         "speakerVoiceConfigs": [
-                            ["speakerAlias": "KAI", "voiceConfig": ["prebuiltVoiceConfig": ["voiceName": "Charon"]]],
-                            ["speakerAlias": "DEV", "voiceConfig": ["prebuiltVoiceConfig": ["voiceName": "Fenrir"]]]
+                            ["speaker": "KAI", "voiceConfig": ["prebuiltVoiceConfig": ["voiceName": "Charon"]]],
+                            ["speaker": "DEV", "voiceConfig": ["prebuiltVoiceConfig": ["voiceName": "Fenrir"]]]
                         ]
                     ]
                 ]
