@@ -60,6 +60,7 @@ struct LibraryInsightsView: View {
     @State private var animProgress: Double = 0
     @State private var fullTextCount: Int = 0
     @State private var fullTextWordCount: Int = 0
+    @State private var fullTextBytes: Int = 0
 
     // MARK: - Derived data
 
@@ -198,14 +199,17 @@ struct LibraryInsightsView: View {
                 // silent-failure issue; fetch(linkId:) is proven-working in ArticleDetailView.
                 var count = 0
                 var totalWords = 0
+                var totalBytes = 0
                 for link in vm.allLinks {
                     if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id) {
                         count += 1
                         totalWords += ft.wordCount
+                        totalBytes += ft.rawText.utf8.count + ft.digest.utf8.count
                     }
                 }
                 fullTextCount = count
                 fullTextWordCount = totalWords
+                fullTextBytes = totalBytes
                 withAnimation(.easeOut(duration: 0.8)) {
                     appeared = true
                     animProgress = 1.0
@@ -643,8 +647,8 @@ struct LibraryInsightsView: View {
                             Text("~\(avgWords) words per article")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            let estMB = Double(fullTextCount * 5) / 1000.0
-                            Text(String(format: "~%.1f MB on device", estMB))
+                            let mb = Double(fullTextBytes) / 1_048_576.0
+                            Text(String(format: "%.2f MB on device", mb))
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                         } else {
