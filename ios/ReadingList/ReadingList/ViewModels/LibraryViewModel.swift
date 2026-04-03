@@ -108,16 +108,51 @@ final class LibraryViewModel {
     }
 
     /// Full rich context for the podcast digest, designed for Gemini's 1M token context window.
-    /// Last 7 days of saves (or top 20 most recent). Includes digests, notes, stars, and metadata.
+    /// Pool: ALL enriched articles (noted or digested, any age) + last 14 days of saves.
+    /// Sorted by richness tier, shuffled within each tier so each generation explores different articles.
     var podcastContext: String {
-        let weekCutoff = Date().addingTimeInterval(-7 * 86400)
-        let weekLinks = allLinks.filter { ($0.savedAt ?? .distantPast) >= weekCutoff }
-        let source: [Link] = weekLinks.isEmpty ? Array(allLinks.prefix(20)) : Array(weekLinks.prefix(50))
-        guard !source.isEmpty else { return "" }
+        // Always include enriched articles regardless of age — captures older articles the user
+        // just got around to reading, noting, or starring.
+        let recentCutoff = Date().addingTimeInterval(-14 * 86400)
+        let enriched = allLinks.filter { link in
+            let hasNote    = !(link.note ?? "").isEmpty
+            let hasDigest  = ArticleFullTextStore.shared.fetch(linkId: link.id) != nil
+                          || !(link.digest ?? "").isEmpty
+            let hasStars   = (link.stars ?? 0) >= 4
+            return hasNote || hasDigest || hasStars
+        }
+        let recent = allLinks.filter { ($0.savedAt ?? .distantPast) >= recentCutoff }
+
+        // Merge, deduplicate, cap pool at 60
+        var seen = Set<String>()
+        var pool: [Link] = []
+        for link in enriched + recent {
+            if seen.insert(link.id).inserted { pool.append(link) }
+        }
+        if pool.isEmpty { pool = Array(allLinks.prefix(30)) }
+        guard !pool.isEmpty else { return "" }
+
+        // Richness tier: lower = richer / more personally engaged
+        func richnessTier(_ link: Link) -> Int {
+            let hasNote   = !(link.note ?? "").isEmpty
+            let hasDigest = ArticleFullTextStore.shared.fetch(linkId: link.id)?.digest.isEmpty == false
+                         || !(link.digest ?? "").isEmpty
+            if hasNote && hasDigest { return 0 }  // noted + rich digest — most engaging
+            if hasNote              { return 1 }  // personally noted
+            if hasDigest            { return 2 }  // deep-saved digest
+            if (link.stars ?? 0) >= 4 { return 3 } // starred but not yet enriched
+            return 4
+        }
+
+        // Shuffle within each tier — ensures different articles surface each generation
+        let grouped = Dictionary(grouping: pool) { richnessTier($0) }
+        let ordered = (0...4).flatMap { t in (grouped[t] ?? []).shuffled() }
+        let source  = Array(ordered.prefix(50))
+
         let lines = source.enumerated().map { i, link in
-            let title = link.title ?? link.url
-            let domain = link.domain ?? "unknown"
-            let stars = link.stars.map { String(repeating: "★", count: $0) } ?? ""
+            let title    = link.title ?? link.url
+            let domain   = link.domain ?? "unknown"
+            let stars    = link.stars.map { String(repeating: "★", count: $0) } ?? ""
             let category = link.category.map { " [\($0)]" } ?? ""
             var parts = "\(i + 1). \"\(title)\" (\(domain))\(category)\(stars.isEmpty ? "" : " \(stars)")"
 
@@ -131,11 +166,10 @@ final class LibraryViewModel {
                 parts += "\n   Summary: \(s)"
             }
 
-            // Always include personal note if present — highest-signal input
+            // Always include personal note — highest-signal input
             if let note = link.note, !note.isEmpty {
                 parts += "\n   My note: \(note)"
             }
-
             return parts
         }
         return lines.joined(separator: "\n\n")

@@ -135,13 +135,13 @@ final class PodcastDigestEngine: NSObject {
 
         RULES — follow these exactly:
         1. Open with ONE casual banter line that is not "welcome to the show" and not about the articles
-        2. Cover exactly 3 articles as main topics — pick the most interesting, highest starred, or personally noted ones
+        2. Cover exactly 3 articles as main topics. VARIETY IS REQUIRED: scan the ENTIRE list before choosing — do not default to the first articles you see. Each regeneration should explore different corners of the library. Prioritise: (a) articles with a "My note:" entry — these signal genuine personal investment, (b) articles with a Digest — rich content to discuss, (c) high star ratings. Spread topics across different domains/themes where possible.
         3. OPINIONS FIRST: state the take before the context. Assume the listener already read the headline.
         4. One host must be noticeably more into each story than the other — asymmetric enthusiasm drives the banter
         5. Use the "yeah but" structure: every strong take gets a line of pushback or added texture from the other host
         6. NEVER resolve disagreements cleanly. End segments with "we'll see", "I still think...", or partial concession only
         7. Transitions must be organic — connect the tail of one topic to the next. Never say "moving on to our next story"
-        8. Notes and star ratings signal real personal investment — give those articles more depth and air time
+        8. When an article has a "My note:" entry, work that personal perspective directly into the dialogue — it should feel like KAI or DEV's own thought, not a quote
         9. Lines should be 10-25 words. Punchy. Real speech rhythm, not writing.
         10. Total: 26-32 lines for a 7-9 minute episode
         11. Format: every line starts with exactly "KAI: " or "DEV: " — no other formatting, no stage directions, no blank lines
