@@ -4,6 +4,7 @@ private enum DeepSavePhase {
     case notSaved
     case saving
     case saved(wordCount: Int, date: Date)
+    case digestSynced   // digest available from another device via Supabase, no local raw text
     case error(String)
 }
 
@@ -174,6 +175,8 @@ struct ArticleDetailView: View {
             .task {
                 if let existing = ArticleFullTextStore.shared.fetch(linkId: currentLink.id) {
                     deepSavePhase = .saved(wordCount: existing.wordCount, date: existing.fetchedAt)
+                } else if let d = currentLink.digest, !d.isEmpty {
+                    deepSavePhase = .digestSynced
                 }
             }
             .sheet(isPresented: $showReflect) {
@@ -474,6 +477,22 @@ struct ArticleDetailView: View {
                     .foregroundStyle(.red)
                     .font(.subheadline)
                 }
+            }
+
+        case .digestSynced:
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Digest synced from another device", systemImage: "arrow.trianglehead.2.clockwise.rotate.90.circle.fill")
+                    .foregroundStyle(.teal)
+                    .fontWeight(.medium)
+                Text("AI digest is available for podcast generation. Save full text here to enable Knowledge Synthesis on this device.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                Button("Save Full Text on This Device") {
+                    Task { await performDeepSave() }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.indigo)
+                .font(.subheadline)
             }
 
         case .error(let msg):
