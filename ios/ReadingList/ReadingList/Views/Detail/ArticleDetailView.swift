@@ -484,15 +484,9 @@ struct ArticleDetailView: View {
                 Label("Digest synced from another device", systemImage: "arrow.trianglehead.2.clockwise.rotate.90.circle.fill")
                     .foregroundStyle(.teal)
                     .fontWeight(.medium)
-                Text("AI digest is available for podcast generation. Save full text here to enable Knowledge Synthesis on this device.")
+                Text("AI summary is available for podcast generation on all devices.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
-                Button("Save Full Text on This Device") {
-                    Task { await performDeepSave() }
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.indigo)
-                .font(.subheadline)
             }
 
         case .error(let msg):
