@@ -1,5 +1,9 @@
 import Foundation
 import AudioToolbox
+import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Models
 
@@ -35,6 +39,7 @@ final class AchievementStore {
     var current: Achievement? = nil
 
     private var queue: [Achievement] = []
+    private var overlayWindow: UIWindow?
     private var unlockedIds: Set<String>
     private(set) var currentStreak: Int = 0
     private var readDateStrings: [String]  // "yyyy-MM-dd"
@@ -140,8 +145,33 @@ final class AchievementStore {
 
     private func showNext() {
         guard !queue.isEmpty else { return }
-        current = queue.removeFirst()
-        playSound(for: current!.confettiLevel)
+        let next = queue.removeFirst()
+        current = next
+        playSound(for: next.confettiLevel)
+        presentOverlay(next)
+    }
+
+    private func presentOverlay(_ achievement: Achievement) {
+        #if canImport(UIKit)
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }) else { return }
+
+        let win = UIWindow(windowScene: scene)
+        win.windowLevel = .alert + 2
+        win.backgroundColor = .clear
+
+        let content = AchievementPopupView(achievement: achievement) { [weak self] in
+            win.isHidden = true
+            self?.overlayWindow = nil
+            self?.dismiss()
+        }
+        let vc = UIHostingController(rootView: content)
+        vc.view.backgroundColor = .clear
+        win.rootViewController = vc
+        win.makeKeyAndVisible()
+        overlayWindow = win
+        #endif
     }
 
     private func playSound(for level: ConfettiLevel) {
