@@ -112,7 +112,7 @@ All pages have OG + Twitter Card meta tags. `og-image.png` + `og-reading-list.pn
 - **`@Observable` + `@MainActor`** throughout — `LibraryViewModel` is the single source of truth
 - **`SupabaseClient.shared`** — raw URLSession + JSONDecoder, no SDK
 - **`SubtaskStore.shared`** — Supabase-backed subtasks (syncs across devices)
-- **`ArticleFullTextStore`** — SwiftData on-device only, never goes to Supabase
+- **`ArticleFullTextStore`** — SwiftData on-device only for `rawText`; `digest` field is synced to Supabase `links.digest` column on save
 - Tabs: **Read → Do → Library → Discover** (default: Read)
 - iPhone: `TabView`. iPad/Mac: `NavigationSplitView` (`IPadNavigationView`)
 
@@ -197,22 +197,47 @@ ios/ReadingList/ReadingList/
 ```
 
 ### AI Features Summary
-| Feature | Entry Point | AI Context Used |
-|---------|-------------|-----------------|
-| Daily Digest | Hamburger menu → "Today's Reading" | Last 24h articles + digests/summaries |
-| Audio Briefing | Hamburger menu or iPad sidebar | Last 7 days articles (digest-first, summary fallback) |
-| Library Insights | Hamburger menu or Discover tab | Pre-aggregated stats only |
-| Notes Review | Hamburger menu or Discover tab | Notes + titles + digests |
-| Knowledge Synthesis | Hamburger menu or Discover tab | Top 12 relevant articles |
-| Discover Similar | From Notes Review recap | NewsAPI + AI curation |
-| Enrich All | Sparkles ✦ toolbar button (when unenriched articles exist, iOS 26+) | Single article metadata |
-| Curate AI Summary | Curate Collection (hamburger/filter menu) | Article digests/summaries |
+| Feature | Entry Point | AI Engine | Context Source |
+|---------|-------------|-----------|----------------|
+| Daily Digest | Hamburger → "Today's Reading" | FoundationModels (iOS 26+) | `todaysSavedContext` — last 24h articles |
+| Audio Briefing | Hamburger or iPad sidebar | **Gemini 2.5 Flash** (script) + **Gemini TTS** (audio) | `podcastContext` — last 7 days, up to 50 articles |
+| Library Insights | Hamburger or Discover tab | FoundationModels (iOS 26+) | `libraryStatsContext` — aggregate stats only (no per-article content) |
+| Notes Review | Hamburger or Discover tab | FoundationModels (iOS 26+) | `notesContext()` — articles with notes, date-filtered |
+| Knowledge Synthesis | Hamburger or Discover tab | FoundationModels (iOS 26+) | Top 12 scored articles from full library |
+| Discover Similar | From Notes Review recap | NewsAPI + FoundationModels | Article titles + themes |
+| Enrich All | Sparkles ✦ toolbar (iOS 26+) | FoundationModels (iOS 26+) | Single article OG metadata |
+| Curate AI Summary | Curate Collection sheet | FoundationModels (iOS 26+) | Selected article digests/summaries |
 
-**Full text context pattern:** `if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty { use digest } else { use summary/note }`
+### CRITICAL: AI Context Priority Order — Apply to ALL features
+
+**Every AI feature that builds per-article context MUST follow this priority chain:**
+
+```swift
+// 1. On-device full digest (richest — from deep save on this device)
+if let ft = ArticleFullTextStore.shared.fetch(linkId: link.id), !ft.digest.isEmpty {
+    use ft.digest
+// 2. Supabase-synced digest (from deep save on another device)
+} else if let d = link.digest, !d.isEmpty {
+    use d
+// 3. Short Supabase summary (from Enrich All)
+} else if let s = link.summary, !s.isEmpty {
+    use s
+}
+// 4. Note — ALWAYS append if present (highest personal signal, never omit)
+if let note = link.note, !note.isEmpty { always include }
+```
+
+**Rule:** Any time you change what data is fed to one AI feature, update ALL AI features that build per-article context. The four that share this pattern are:
+- `LibraryViewModel.todaysSavedContext` → Daily Digest
+- `LibraryViewModel.notesContext()` → Notes Review
+- `LibraryViewModel.podcastContext` → Audio Briefing
+- `KnowledgeSynthesisView.buildContext()` → Knowledge Synthesis
+
+Library Insights uses aggregate stats only (`libraryStatsContext`) — no per-article context needed there.
 
 ### Full Text / Digest Pipeline — CRITICAL to understand
 
-There are **two separate enrichment levels** that are often confused:
+There are **three enrichment levels**:
 
 **Level 1 — "Enrich All" ✦ (Supabase fields, lightweight)**
 - Triggered by: ✦ sparkles toolbar button on any article without a summary/note
@@ -220,28 +245,31 @@ There are **two separate enrichment levels** that are often confused:
 - What it does NOT do: Never fetches full article text. Never touches `ArticleFullTextStore`.
 - Source material: Only the article's existing `title`, `description`, `url` (OG metadata)
 
-**Level 2 — "Save Full Text" / Deep Save (SwiftData, on-device only)**
+**Level 2 — "Save Full Text" / Deep Save (triggers cross-device digest sync)**
 - Triggered by exactly THREE things in `ArticleDetailView.performDeepSave()`:
   1. User taps "Save Full Text" button in the Full Text section of detail view
   2. User rates an article **5 stars** (auto-triggers if not already saved)
   3. User saves a **note** for the first time (auto-triggers if not already saved)
-- What it does: `ArticleExtractor` fetches full page text via hidden WKWebView → `ArticleDigestEngine` generates a rich 150-200 word digest → saved to `ArticleFullTextStore` (SwiftData, never Supabase)
-- Result: `ArticleFullText` with `rawText` (up to 15K chars) + `digest` (150-200 words)
+- What it does: `ArticleExtractor` fetches full page text via hidden WKWebView → `ArticleDigestEngine` generates a rich 150-200 word digest → saved to `ArticleFullTextStore` (SwiftData local) AND digest PATCHed to `links.digest` in Supabase
+- Result: `ArticleFullText` with `rawText` (up to 15K chars, local only) + `digest` (150-200 words, also in Supabase)
 
-**Implication for AI features:** Most articles only have a short Supabase `summary`. Only articles you've rated 5★, noted, or manually deep-saved have the rich `digest`. When building AI context, always check `ArticleFullTextStore` first and fall back to `summary` — never assume a digest exists.
+**Level 3 — Supabase digest (cross-device)**
+- The `digest` field on the `Link` model (Supabase `links.digest` column) is populated automatically when any device performs a deep save
+- Available to all devices on next fetch — no action needed on the receiving device
+- `ArticleDetailView` shows a teal "Digest synced from another device" indicator when `link.digest` is set but no local `ArticleFullText` exists
 
-**Best podcast/AI source articles:** Filter for articles where `ArticleFullTextStore.shared.fetch(linkId:) != nil` — these have real content to discuss. Articles with only a Supabase summary give the LLM very little to work with.
+**Best AI source articles:** Articles where `ArticleFullTextStore.shared.fetch(linkId:) != nil` OR `link.digest != nil` — these have real 150-200 word digests. Articles with only a Supabase `summary` give the LLM much less to work with.
 
-### AI Rule — ALWAYS USE FOUNDATION MODELS
-**Never use external AI APIs (Claude API, OpenAI, etc.) in the iOS app.** All generative AI uses `LanguageModelSession` from `FoundationModels`. Always gate with `if #available(iOS 26, *)` and provide a graceful fallback. Never dump raw data sets — always pre-aggregate context.
+### AI Rule — FoundationModels vs External APIs
+**Most AI features use FoundationModels** (`LanguageModelSession`, iOS 26+). Always gate with `if #available(iOS 26, *)` and provide a graceful fallback. Never dump raw data sets — always pre-aggregate context.
 
-**Exception under consideration:** Audio Briefing (`PodcastDigestEngine`) may optionally support external APIs (Gemini, Google Cloud TTS) for better voice quality and larger context window. If implemented, API keys must be stored in app settings, never hardcoded. On-device FoundationModels remains the default/offline fallback.
+**Audio Briefing is the exception:** Uses **Gemini 2.5 Flash** (script generation, free tier) + **Gemini 2.5 Flash TTS** (audio synthesis, free preview tier). API key stored in `AppStorage("geminiAPIKey")`, entered in Profile → AI Services. No iOS version gate needed — works on any iOS version with internet. Never use paid external APIs for other features.
 
 ### FoundationModels Context Window Limits
 The on-device model has a small context window (~4K tokens total including prompt + response). Hard limits enforced in each feature:
-- `podcastContext`: 4 articles max, ~100 chars per blurb, 600 char total cap, then `prefix(600)` in engine
 - `todaysSavedContext`: 20 articles max with digests/summaries
 - `notesContext`: 20 articles max
+- Podcast uses Gemini (1M token context) — no limit needed
 - `@Guide` macro requires `description:` named label — `@Guide(description: "...")` not `@Guide("...")`
 - `session.respond(to:generating:)` returns `Response<T>` — access value via `.content`, not directly
 - `@Generable` structs must be defined at file scope (not nested), inside `#if canImport(FoundationModels)`
@@ -258,4 +286,4 @@ The on-device model has a small context window (~4K tokens total including promp
 - **Mac app distribution:** Without $99/yr Apple Developer account, build from Xcode + copy to `/Applications` manually. Free certs expire every 7 days.
 - **NewsAPI key** in `NewsAPIConfig.swift` is hardcoded in source (free tier, 100 req/day). Low risk but visible in public repo.
 
-*Last updated: 2026-03-31 by Claude Code*
+*Last updated: 2026-04-02 by Claude Code*
