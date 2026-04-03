@@ -1,8 +1,6 @@
 import Foundation
 import AVFoundation
-#if canImport(FoundationModels)
-import FoundationModels
-#endif
+import SwiftUI
 
 // MARK: - Data types
 
@@ -33,34 +31,14 @@ enum PodcastSpeaker: String, CaseIterable {
 
 enum PodcastPhase {
     case idle
-    case generating
+    case generatingScript
+    case synthesizingAudio
     case ready([PodcastLine])
     case playing(currentLine: Int)
     case paused(currentLine: Int)
     case error(String)
-    case unavailable(String)
-
+    case missingAPIKey
 }
-
-// MARK: - Generable structured output types (iOS 26 / FoundationModels)
-
-#if canImport(FoundationModels)
-@available(iOS 26, *)
-@Generable
-struct PodcastScript {
-    @Guide(description: "Between 12 and 16 dialogue lines, alternating between KAI and DEV")
-    var lines: [ScriptLine]
-}
-
-@available(iOS 26, *)
-@Generable
-struct ScriptLine {
-    @Guide(description: "The speaker. Must be exactly KAI or DEV.")
-    var speaker: String
-    @Guide(description: "What they say. Casual, under 18 words. No stage directions.")
-    var text: String
-}
-#endif
 
 // MARK: - Engine
 
@@ -69,221 +47,367 @@ struct ScriptLine {
 final class PodcastDigestEngine: NSObject {
 
     var phase: PodcastPhase = .idle
-
-    // Playback state
     private(set) var playbackIndex: Int = 0
     var allLines: [PodcastLine] = []
-    private var isStopRequested = false
-    private var cachedVoices: (kai: AVSpeechSynthesisVoice, dev: AVSpeechSynthesisVoice)?
 
-    private let synthesizer = AVSpeechSynthesizer()
+    private var audioPlayer: AVAudioPlayer?
+    private var playbackTimer: Timer?
+    private var lineStartTimes: [TimeInterval] = []
+    private var audioFileURL: URL?
 
-    override init() {
-        super.init()
-        synthesizer.delegate = self
+    private let scriptModel = "gemini-2.5-flash"
+    private let ttsModel = "gemini-2.5-flash-preview-tts"
+    private let geminiBase = "https://generativelanguage.googleapis.com/v1beta/models"
+
+    private var apiKey: String {
+        UserDefaults.standard.string(forKey: "geminiAPIKey") ?? ""
     }
 
-    // MARK: - Voice selection
-
-    private func pickVoices() -> (kai: AVSpeechSynthesisVoice, dev: AVSpeechSynthesisVoice) {
-        if let cached = cachedVoices { return cached }
-
-        let all = AVSpeechSynthesisVoice.speechVoices()
-            .filter { $0.language.hasPrefix("en-") }
-
-        func quality(_ v: AVSpeechSynthesisVoice) -> Int {
-            let id = v.identifier.lowercased()
-            if id.contains("premium") { return 3 }
-            if id.contains("enhanced") { return 2 }
-            return 1
-        }
-
-        let sorted = all.sorted { quality($0) > quality($1) }
-        let first  = sorted.first ?? AVSpeechSynthesisVoice(language: "en-US")!
-        // Pick a second voice that's different — prefer a different name in the identifier
-        let second = sorted.first(where: {
-            $0.identifier != first.identifier &&
-            $0.language == first.language
-        }) ?? sorted.first(where: { $0.identifier != first.identifier })
-               ?? AVSpeechSynthesisVoice(language: "en-AU") ?? first
-
-        let result = (kai: first, dev: second)
-        cachedVoices = result
-        return result
-    }
-
-    // MARK: - Script Generation
+    // MARK: - Generate
 
     func generate(context: String) async {
-        guard !context.isEmpty else {
-            phase = .unavailable("No articles found. Save some links first.")
+        guard !apiKey.isEmpty else {
+            phase = .missingAPIKey
             return
         }
-        phase = .generating
-        if #available(iOS 26, *) {
-            await generateScript(context: context)
-        } else {
-            phase = .unavailable("Audio Briefing requires iOS 26 and Apple Intelligence.")
+        guard !context.isEmpty else {
+            phase = .error("No articles found. Save some links first.")
+            return
         }
-    }
-
-    @available(iOS 26, *)
-    private func generateScript(context: String) async {
-        #if canImport(FoundationModels)
-        // Hard cap: on-device model has a small context window (~4K tokens total)
-        let trimmedContext = String(context.prefix(600))
-
-        let instructions = """
-        You are writing dialogue for a casual tech podcast called "The Backlog". \
-        KAI explains ideas and makes connections ("Ok so here's the thing—", "No but think about it—"). \
-        DEV reacts with enthusiasm and asks obvious questions ("Wait wait wait", "Oh dude", "Ok but WHY"). \
-        Lines are short and punchy — under 18 words. Casual, like two friends on a couch. Dry humor welcome.
-        """
-
-        let prompt = """
-        Write a 12-line podcast script where KAI and DEV discuss these saved articles. \
-        Start with one line of off-topic banter. Have DEV misunderstand one article and KAI correct them. \
-        End with KAI's top pick and DEV's disagreement.
-
-        Articles:
-        \(trimmedContext)
-        """
 
         do {
-            let session = LanguageModelSession(instructions: instructions)
-            let result = try await session.respond(to: prompt, generating: PodcastScript.self)
-            let lines: [PodcastLine] = result.content.lines.compactMap { line in
-                switch line.speaker.uppercased().trimmingCharacters(in: .whitespaces) {
-                case "KAI": return PodcastLine(speaker: .kai, text: line.text)
-                case "DEV": return PodcastLine(speaker: .dev, text: line.text)
-                default:    return nil
-                }
-            }
+            phase = .generatingScript
+            let lines = try await generateScript(context: context)
             guard !lines.isEmpty else {
-                phase = .error("No dialogue generated — tap Regenerate to try again.")
+                phase = .error("Couldn't parse a script from the response — tap Regenerate.")
                 return
             }
             allLines = lines
+
+            phase = .synthesizingAudio
+            let url = try await synthesizeAudio(lines: lines)
+            audioFileURL = url
             phase = .ready(lines)
         } catch {
-            let desc = error.localizedDescription.lowercased()
-            if desc.contains("available") || desc.contains("support") || desc.contains("intelligence") {
-                phase = .unavailable("Apple Intelligence is not available on this device.")
-            } else if desc.contains("context") || desc.contains("length") || desc.contains("token") {
-                phase = .error("On-device AI context exceeded — tap Regenerate.")
-            } else {
-                phase = .error(error.localizedDescription)
+            phase = .error((error as? GeminiError)?.message ?? error.localizedDescription)
+        }
+    }
+
+    func regenerate(context: String) {
+        audioPlayer?.stop()
+        stopTimer()
+        if let url = audioFileURL { try? FileManager.default.removeItem(at: url) }
+        audioFileURL = nil
+        allLines = []
+        playbackIndex = 0
+        phase = .idle
+        Task { await generate(context: context) }
+    }
+
+    // MARK: - Script Generation (Gemini 2.5 Flash)
+
+    private func generateScript(context: String) async throws -> [PodcastLine] {
+        let url = URL(string: "\(geminiBase)/\(scriptModel):generateContent?key=\(apiKey)")!
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 60
+
+        let prompt = buildScriptPrompt(context: context)
+        let body: [String: Any] = [
+            "contents": [["role": "user", "parts": [["text": prompt]]]],
+            "generationConfig": ["temperature": 0.9, "maxOutputTokens": 8192]
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try checkGeminiStatus(response, data: data)
+        let text = try extractGeminiText(data)
+        return parseScript(text)
+    }
+
+    private func buildScriptPrompt(context: String) -> String {
+        """
+        You write scripts for "The Backlog" — a casual, entertaining tech/internet podcast in the style of Diggnation and Relay FM's Connected.
+
+        KAI is the explainer: makes connections between topics, leads the analysis, occasionally goes deep on something obscure. Phrases: "Ok so here's the thing—", "No but think about it—", "This is actually wild because..."
+        DEV is the reactor: skeptical at first, then sometimes more excited than KAI. Asks the obvious question that everyone's thinking. Deflates takes before buying in. Phrases: "Wait wait wait", "Ok but WHY though", "...actually ok fair", "No I hear you but—"
+
+        RULES — follow these exactly:
+        1. Open with ONE casual banter line that is not "welcome to the show" and not about the articles
+        2. Cover exactly 3 articles as main topics — pick the most interesting, highest starred, or personally noted ones
+        3. OPINIONS FIRST: state the take before the context. Assume the listener already read the headline.
+        4. One host must be noticeably more into each story than the other — asymmetric enthusiasm drives the banter
+        5. Use the "yeah but" structure: every strong take gets a line of pushback or added texture from the other host
+        6. NEVER resolve disagreements cleanly. End segments with "we'll see", "I still think...", or partial concession only
+        7. Transitions must be organic — connect the tail of one topic to the next. Never say "moving on to our next story"
+        8. Notes and star ratings signal real personal investment — give those articles more depth and air time
+        9. Lines should be 10-25 words. Punchy. Real speech rhythm, not writing.
+        10. Total: 26-32 lines for a 7-9 minute episode
+        11. Format: every line starts with exactly "KAI: " or "DEV: " — no other formatting, no stage directions, no blank lines
+
+        User's saved articles:
+
+        \(context)
+
+        Write the script:
+        """
+    }
+
+    private func parseScript(_ text: String) -> [PodcastLine] {
+        text.components(separatedBy: "\n").compactMap { line in
+            let t = line.trimmingCharacters(in: .whitespaces)
+            if t.hasPrefix("KAI:") {
+                let body = t.dropFirst(4).trimmingCharacters(in: .whitespaces)
+                return body.isEmpty ? nil : PodcastLine(speaker: .kai, text: body)
+            } else if t.hasPrefix("DEV:") {
+                let body = t.dropFirst(4).trimmingCharacters(in: .whitespaces)
+                return body.isEmpty ? nil : PodcastLine(speaker: .dev, text: body)
+            }
+            return nil
+        }
+    }
+
+    // MARK: - Audio Synthesis (Gemini 2.5 Flash TTS)
+
+    private func synthesizeAudio(lines: [PodcastLine]) async throws -> URL {
+        let scriptText = lines.map { "\($0.speaker.rawValue): \($0.text)" }.joined(separator: "\n")
+
+        let url = URL(string: "\(geminiBase)/\(ttsModel):generateContent?key=\(apiKey)")!
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 180 // TTS for a full episode can take time
+
+        let body: [String: Any] = [
+            "contents": [["parts": [["text": scriptText]]]],
+            "generationConfig": [
+                "responseModalities": ["AUDIO"],
+                "speechConfig": [
+                    "multiSpeakerVoiceConfig": [
+                        "speakerVoiceConfigs": [
+                            ["speakerAlias": "KAI", "voiceConfig": ["prebuiltVoiceConfig": ["voiceName": "Charon"]]],
+                            ["speakerAlias": "DEV", "voiceConfig": ["prebuiltVoiceConfig": ["voiceName": "Fenrir"]]]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try checkGeminiStatus(response, data: data)
+        let pcmData = try extractAudioData(data)
+        let wavData = makeWAV(pcmData: pcmData)
+
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("backlog_\(Int(Date().timeIntervalSince1970)).wav")
+        try wavData.write(to: fileURL)
+        return fileURL
+    }
+
+    /// Wraps raw 16-bit 24kHz mono PCM in a WAV container.
+    private func makeWAV(pcmData: Data) -> Data {
+        let sampleRate: UInt32 = 24000
+        let channels: UInt16 = 1
+        let bitsPerSample: UInt16 = 16
+        let byteRate = sampleRate * UInt32(channels) * UInt32(bitsPerSample) / 8
+        let blockAlign = channels * bitsPerSample / 8
+        let dataSize = UInt32(pcmData.count)
+
+        var h = Data()
+        h += "RIFF".utf8;  h.appendLE(36 + dataSize)
+        h += "WAVE".utf8
+        h += "fmt ".utf8;  h.appendLE(UInt32(16))
+        h.appendLE(UInt16(1))      // PCM
+        h.appendLE(channels)
+        h.appendLE(sampleRate)
+        h.appendLE(byteRate)
+        h.appendLE(blockAlign)
+        h.appendLE(bitsPerSample)
+        h += "data".utf8;  h.appendLE(dataSize)
+        return h + pcmData
+    }
+
+    // MARK: - Gemini Helpers
+
+    private func checkGeminiStatus(_ response: URLResponse, data: Data) throws {
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200...299).contains(status) else {
+            struct ErrResp: Decodable { struct E: Decodable { let message: String }; let error: E }
+            let msg = (try? JSONDecoder().decode(ErrResp.self, from: data))?.error.message
+            switch status {
+            case 401, 403: throw GeminiError("Invalid API key — update it in Profile > AI Services.")
+            case 429:      throw GeminiError("Rate limit reached — wait a moment and try again.")
+            default:       throw GeminiError(msg ?? "Gemini request failed (HTTP \(status)).")
             }
         }
-        #else
-        phase = .unavailable("FoundationModels framework is not available in this build.")
-        #endif
     }
 
-    // MARK: - Playback Control
+    private func extractGeminiText(_ data: Data) throws -> String {
+        struct Resp: Decodable {
+            struct Candidate: Decodable {
+                struct Content: Decodable {
+                    struct Part: Decodable { let text: String? }
+                    let parts: [Part]
+                }
+                let content: Content
+            }
+            let candidates: [Candidate]
+        }
+        guard let text = (try JSONDecoder().decode(Resp.self, from: data))
+                .candidates.first?.content.parts.first?.text else {
+            throw GeminiError("Empty script response from Gemini.")
+        }
+        return text
+    }
+
+    private func extractAudioData(_ data: Data) throws -> Data {
+        struct Resp: Decodable {
+            struct Candidate: Decodable {
+                struct Content: Decodable {
+                    struct Part: Decodable {
+                        struct InlineData: Decodable { let data: String }
+                        let inlineData: InlineData?
+                    }
+                    let parts: [Part]
+                }
+                let content: Content
+            }
+            let candidates: [Candidate]
+        }
+        guard let b64 = (try JSONDecoder().decode(Resp.self, from: data))
+                .candidates.first?.content.parts.first?.inlineData?.data,
+              let pcm = Data(base64Encoded: b64) else {
+            throw GeminiError("No audio data in TTS response.")
+        }
+        return pcm
+    }
+
+    // MARK: - Playback
 
     func play() {
-        guard case .ready(let lines) = phase else { return }
-        allLines = lines
-        startPlayback(from: 0)
-    }
-
-    func resume() {
-        guard case .paused(let idx) = phase else { return }
-        if synthesizer.isPaused {
-            synthesizer.continueSpeaking()
-            phase = .playing(currentLine: idx)
-        } else {
-            startPlayback(from: idx)
+        guard let url = audioFileURL else { return }
+        configureAudioSession()
+        do {
+            audioPlayer = try AVAudioPlayer(contentsOf: url)
+            audioPlayer?.delegate = self
+            audioPlayer?.prepareToPlay()
+            audioPlayer?.play()
+            computeLineTimings()
+            playbackIndex = 0
+            phase = .playing(currentLine: 0)
+            startTimer()
+        } catch {
+            phase = .error("Could not play audio: \(error.localizedDescription)")
         }
     }
 
     func pause() {
         guard case .playing(let idx) = phase else { return }
-        synthesizer.pauseSpeaking(at: .word)
+        audioPlayer?.pause()
+        stopTimer()
         phase = .paused(currentLine: idx)
     }
 
+    func resume() {
+        guard case .paused(let idx) = phase else { return }
+        audioPlayer?.play()
+        phase = .playing(currentLine: idx)
+        startTimer()
+    }
+
     func stop() {
-        isStopRequested = true
-        synthesizer.stopSpeaking(at: .immediate)
+        audioPlayer?.stop()
+        stopTimer()
+        playbackIndex = 0
         phase = .ready(allLines)
     }
 
     func restart() {
         stop()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            self?.play()
-        }
+        play()
     }
 
-    func regenerate(context: String) {
-        stop()
-        allLines = []
-        phase = .idle
-        Task { await generate(context: context) }
-    }
+    // MARK: - Line Timing (character-proportional estimation)
 
-    private func startPlayback(from index: Int) {
-        isStopRequested = false
-        playbackIndex = index
-        configureAudioSession()
-        speakLine(at: index)
-    }
-
-    private func speakLine(at index: Int) {
-        guard index < allLines.count, !isStopRequested else {
-            if !isStopRequested { phase = .ready(allLines) }
+    private func computeLineTimings() {
+        guard let duration = audioPlayer?.duration, duration > 0 else {
+            lineStartTimes = Array(repeating: 0, count: allLines.count)
             return
         }
-
-        let line = allLines[index]
-        let voices = pickVoices()
-
-        let utterance = AVSpeechUtterance(string: line.text)
-
-        switch line.speaker {
-        case .kai:
-            utterance.voice = voices.kai
-            utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.92
-            utterance.pitchMultiplier = 1.08
-            utterance.volume = 0.95
-        case .dev:
-            utterance.voice = voices.dev
-            utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.97
-            utterance.pitchMultiplier = 0.90
-            utterance.volume = 1.0
+        let totalChars = max(1, allLines.reduce(0) { $0 + $1.text.count })
+        var cumulative = 0
+        lineStartTimes = allLines.map { line in
+            let t = Double(cumulative) / Double(totalChars) * duration
+            cumulative += line.text.count
+            return t
         }
-
-        utterance.preUtteranceDelay  = index == 0 ? 0.1 : 0.28
-        utterance.postUtteranceDelay = 0.05
-
-        phase = .playing(currentLine: index)
-        synthesizer.speak(utterance)
     }
+
+    private func startTimer() {
+        stopTimer()
+        playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.tickPlayback() }
+        }
+    }
+
+    private func stopTimer() {
+        playbackTimer?.invalidate()
+        playbackTimer = nil
+    }
+
+    private func tickPlayback() {
+        guard let player = audioPlayer, player.isPlaying, !lineStartTimes.isEmpty else { return }
+        let idx = lineStartTimes.lastIndex(where: { $0 <= player.currentTime }) ?? 0
+        guard idx != playbackIndex else { return }
+        playbackIndex = idx
+        phase = .playing(currentLine: idx)
+    }
+
+    var currentProgress: Double {
+        guard let p = audioPlayer, p.duration > 0 else { return 0 }
+        return p.currentTime / p.duration
+    }
+
+    var audioCurrentTime: TimeInterval  { audioPlayer?.currentTime ?? 0 }
+    var audioDuration: TimeInterval     { audioPlayer?.duration ?? 0 }
 
     private func configureAudioSession() {
         #if os(iOS)
-        try? AVAudioSession.sharedInstance().setCategory(
-            .playback,
-            mode: .spokenAudio,
-            options: [.duckOthers]
-        )
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
         try? AVAudioSession.sharedInstance().setActive(true)
         #endif
     }
 }
 
-// MARK: - AVSpeechSynthesizerDelegate
+// MARK: - AVAudioPlayerDelegate
 
-extension PodcastDigestEngine: AVSpeechSynthesizerDelegate {
-    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+extension PodcastDigestEngine: AVAudioPlayerDelegate {
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor [weak self] in
-            guard let self, !self.isStopRequested else { return }
-            let next = self.playbackIndex + 1
-            self.playbackIndex = next
-            self.speakLine(at: next)
+            guard let self else { return }
+            self.stopTimer()
+            self.playbackIndex = 0
+            self.phase = .ready(self.allLines)
         }
+    }
+}
+
+// MARK: - Error
+
+struct GeminiError: LocalizedError {
+    let message: String
+    init(_ message: String) { self.message = message }
+    var errorDescription: String? { message }
+}
+
+// MARK: - Data + little-endian helper
+
+private extension Data {
+    mutating func appendLE<T: FixedWidthInteger>(_ value: T) {
+        var v = value.littleEndian
+        Swift.withUnsafeBytes(of: &v) { append(contentsOf: $0) }
     }
 }
 

@@ -104,26 +104,38 @@ final class LibraryViewModel {
         }.joined(separator: "\n\n")
     }
 
-    /// Context for the podcast digest. Kept very short — on-device model has a small context window.
-    /// Max 4 articles, title + one short sentence each, total capped at 600 chars.
+    /// Full rich context for the podcast digest, designed for Gemini's 1M token context window.
+    /// Last 7 days of saves (or top 20 most recent). Includes digests, notes, stars, and metadata.
     var podcastContext: String {
         let weekCutoff = Date().addingTimeInterval(-7 * 86400)
-        let weekLinks = allLinks.filter { ($0.savedAt ?? .distantPast) >= weekCutoff }.prefix(4)
-        let source: [Link] = weekLinks.isEmpty ? Array(allLinks.prefix(4)) : Array(weekLinks)
+        let weekLinks = allLinks.filter { ($0.savedAt ?? .distantPast) >= weekCutoff }
+        let source: [Link] = weekLinks.isEmpty ? Array(allLinks.prefix(20)) : Array(weekLinks.prefix(50))
         guard !source.isEmpty else { return "" }
         let lines = source.enumerated().map { i, link in
-            let title = String((link.title ?? link.url).prefix(80))
+            let title = link.title ?? link.url
             let domain = link.domain ?? "unknown"
-            // First sentence of summary/note only, capped at 100 chars
-            let blurb: String = {
-                let candidates = [link.summary, link.note].compactMap { $0 }.filter { !$0.isEmpty }
-                guard let raw = candidates.first else { return "" }
-                let sentence = raw.components(separatedBy: ".").first ?? raw
-                return " — " + String(sentence.trimmingCharacters(in: .whitespaces).prefix(100))
-            }()
-            return "\(i + 1). \"\(title)\" (\(domain))\(blurb)"
+            let stars = link.stars.map { String(repeating: "★", count: $0) } ?? ""
+            let category = link.category.map { " [\($0)]" } ?? ""
+            var parts = "\(i + 1). \"\(title)\" (\(domain))\(category)\(stars.isEmpty ? "" : " \(stars)")"
+
+            // Best digest: on-device full text > Supabase-synced digest > Supabase summary
+            let ft = ArticleFullTextStore.shared.fetch(linkId: link.id)
+            if let d = ft?.digest, !d.isEmpty {
+                parts += "\n   Digest: \(d)"
+            } else if let d = link.digest, !d.isEmpty {
+                parts += "\n   Digest: \(d)"
+            } else if let s = link.summary, !s.isEmpty {
+                parts += "\n   Summary: \(s)"
+            }
+
+            // Always include personal note if present — highest-signal input
+            if let note = link.note, !note.isEmpty {
+                parts += "\n   My note: \(note)"
+            }
+
+            return parts
         }
-        return String(lines.joined(separator: "\n").prefix(600))
+        return lines.joined(separator: "\n\n")
     }
 
     /// Compact pre-aggregated stats string for the Insights prompt.

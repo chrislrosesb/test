@@ -13,6 +13,7 @@ struct Link: Codable, Identifiable {
     var stars: Int?
     var note: String?
     var summary: String?
+    var digest: String?
     var status: String?
     var read: Bool?
     var isPrivate: Bool?
@@ -20,7 +21,7 @@ struct Link: Codable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, url, title, description, image, favicon
-        case domain, category, tags, stars, note, summary, status, read
+        case domain, category, tags, stars, note, summary, digest, status, read
         case isPrivate = "private"
         case savedAt = "saved_at"
     }

@@ -118,14 +118,17 @@ struct PodcastDigestView: View {
         case .idle:
             idleView
 
-        case .generating:
-            generatingView
+        case .generatingScript:
+            generatingView(title: "Writing the episode…", subtitle: "Kai and Dev are prepping their takes.")
+
+        case .synthesizingAudio:
+            generatingView(title: "Rendering audio…", subtitle: "Gemini is recording the episode. This takes ~30 seconds.")
 
         case .ready, .playing, .paused:
             scriptView(lines: engine.allLines)
 
-        case .unavailable(let msg):
-            unavailableView(msg)
+        case .missingAPIKey:
+            missingAPIKeyView
 
         case .error(let msg):
             errorView(msg)
@@ -142,7 +145,7 @@ struct PodcastDigestView: View {
                 Text("Ready to roll")
                     .font(.title3)
                     .fontWeight(.bold)
-                Text("Kai and Dev will discuss your recent saves.\nAudio plays through your speakers.")
+                Text("Kai and Dev will discuss your recent saves.\nPowered by Gemini — takes about 30 seconds.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -163,18 +166,37 @@ struct PodcastDigestView: View {
         .padding()
     }
 
-    var generatingView: some View {
+    func generatingView(title: String, subtitle: String) -> some View {
         VStack(spacing: 20) {
             Spacer()
             ProgressView()
                 .scaleEffect(1.4)
             VStack(spacing: 6) {
-                Text("Writing the episode…")
+                Text(title)
                     .font(.headline)
-                Text("Kai and Dev are prepping their takes.")
+                Text(subtitle)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
             }
+            Spacer()
+        }
+    }
+
+    var missingAPIKeyView: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "key.slash")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary)
+            Text("Gemini API key required")
+                .font(.headline)
+            Text("Add your free key in Profile > AI Services.\nGet one at aistudio.google.com — no credit card needed.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
             Spacer()
         }
     }
@@ -260,21 +282,6 @@ struct PodcastDigestView: View {
             )
             .scaleEffect(isCurrentLine ? 1.02 : 1.0)
             .frame(maxWidth: .infinity, alignment: alignRight ? .trailing : .leading)
-    }
-
-    func unavailableView(_ msg: String) -> some View {
-        VStack(spacing: 16) {
-            Spacer()
-            Image(systemName: "sparkles.slash")
-                .font(.system(size: 40))
-                .foregroundStyle(.secondary)
-            Text(msg)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-            Spacer()
-        }
     }
 
     func errorView(_ msg: String) -> some View {

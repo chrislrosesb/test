@@ -56,6 +56,14 @@ final class ArticleFullTextStore {
         )
         context.insert(entry)
         try? context.save()
+
+        // Sync digest to Supabase so other devices can use it for podcast generation.
+        // Fire-and-forget — local store is authoritative, this is best-effort.
+        if SupabaseClient.shared.isAuthenticated {
+            Task {
+                try? await SupabaseClient.shared.updateLink(id: linkId, fields: ["digest": digest])
+            }
+        }
     }
 
     func delete(linkId: String) {

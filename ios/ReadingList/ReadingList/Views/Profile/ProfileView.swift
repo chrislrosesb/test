@@ -8,6 +8,7 @@ struct ProfileView: View {
     @AppStorage("readerFontSize") private var fontSize: Double = 17
     @AppStorage("readerFont") private var fontRaw: String = "system"
     @AppStorage("readerTheme") private var themeRaw: String = "dark"
+    @AppStorage("geminiAPIKey") private var geminiAPIKey: String = ""
     @AppStorage("dailyDigestEnabled") private var digestEnabled: Bool = false
     @AppStorage("digestHour") private var digestHour: Int = 8
     @AppStorage("digestMinute") private var digestMinute: Int = 0
@@ -19,6 +20,7 @@ struct ProfileView: View {
                 notificationSection
                 readerSection
                 librarySection
+                aiSection
                 accountSection
             }
             .navigationTitle("Profile")
@@ -126,6 +128,26 @@ struct ProfileView: View {
                 Text("Cards").tag("cards")
                 Text("List").tag("list")
             }
+        }
+    }
+
+    // MARK: - AI Services
+
+    var aiSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Gemini API Key")
+                    .font(.subheadline)
+                SecureField("Paste your key here", text: $geminiAPIKey)
+                    .font(.callout)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text("AI Services")
+        } footer: {
+            Text("Used for Audio Briefing. Free at aistudio.google.com — no credit card required.")
         }
     }
 
