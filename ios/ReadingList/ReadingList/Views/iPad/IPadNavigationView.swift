@@ -1,4 +1,5 @@
 import SwiftUI
+import SafariServices
 
 enum SidebarItem: String, Hashable, CaseIterable {
     case library = "Library"
@@ -137,6 +138,13 @@ struct IPadReadingPane: View {
     @State private var showFinished: Bool = false
     @State private var showTypography: Bool = false
     @State private var reflectLink: Link? = nil
+    @State private var showSafariView: Bool = false
+
+    static func isSocialURL(_ urlString: String) -> Bool {
+        guard let host = URL(string: urlString)?.host?.lowercased() else { return false }
+        return host.contains("threads.net") || host.contains("x.com") ||
+               host.contains("twitter.com") || host.contains("instagram.com")
+    }
     @AppStorage("libraryViewMode") private var viewMode: String = "cards"
     @AppStorage("readerFontSize") private var fontSize: Double = 17
     @AppStorage("readerFont") private var fontRaw: String = "system"
@@ -192,9 +200,18 @@ struct IPadReadingPane: View {
             .sheet(isPresented: $showTypography) {
                 TypographySheet()
             }
-            .onChange(of: selectedLink) { _, _ in
+            .onChange(of: selectedLink) { _, newLink in
                 isReaderMode = false
                 isInfoMode = false
+                if let link = newLink, Self.isSocialURL(link.url) {
+                    showSafariView = true
+                }
+            }
+            .sheet(isPresented: $showSafariView) {
+                if let link = selectedLink, let url = URL(string: link.url) {
+                    SafariSheet(url: url)
+                        .ignoresSafeArea()
+                }
             }
         }
     }
@@ -307,6 +324,9 @@ struct IPadReadingPane: View {
                             UIPasteboard.general.string = link.url
                         } label: {
                             Label("Copy URL", systemImage: "doc.on.doc")
+                        }
+                        Button { showSafariView = true } label: {
+                            Label("Open with Login", systemImage: "person.badge.key")
                         }
                         Button { UIApplication.shared.open(url) } label: {
                             Label("Open in Safari", systemImage: "safari")

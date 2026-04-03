@@ -16,6 +16,15 @@ struct ArticleReaderContainer: View {
     @State private var isReaderMode = false
     @State private var reflectLink: Link? = nil
 
+    // Auto-open social platforms (Threads, X, Instagram) in Safari View so shared login works
+    static func isSocialURL(_ urlString: String) -> Bool {
+        guard let host = URL(string: urlString)?.host?.lowercased() else { return false }
+        return host.contains("threads.net") || host.contains("x.com") ||
+               host.contains("twitter.com") || host.contains("instagram.com")
+    }
+
+    var isSocialLink: Bool { Self.isSocialURL(currentLink.url) }
+
     @AppStorage("readerFontSize") private var fontSize: Double = 17
     @AppStorage("readerFont") private var fontRaw: String = "system"
     @AppStorage("readerTheme") private var themeRaw: String = "dark"
@@ -126,6 +135,12 @@ struct ArticleReaderContainer: View {
                 SafariSheet(url: url)
                     .ignoresSafeArea()
             }
+        }
+        .onAppear {
+            if isSocialLink { showSafariView = true }
+        }
+        .onChange(of: currentIndex) { _, _ in
+            if isSocialLink { showSafariView = true }
         }
     }
 
