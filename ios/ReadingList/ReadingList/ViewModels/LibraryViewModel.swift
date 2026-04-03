@@ -306,6 +306,8 @@ final class LibraryViewModel {
             errorMessage = errorMessage == nil ? catError : errorMessage! + "\n" + catError
         }
         isLoading = false
+        // Check save-count achievements (safe to call on every load)
+        AchievementStore.shared.articleSaved(totalSaved: allLinks.count)
     }
 
     func refresh() async {

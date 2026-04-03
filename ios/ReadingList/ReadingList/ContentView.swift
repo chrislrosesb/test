@@ -8,17 +8,30 @@ struct ContentView: View {
 
     static let sharedLibraryVM = LibraryViewModel()
 
+    @State private var achievementStore = AchievementStore.shared
+
     var body: some View {
-        Group {
-            if sizeClass == .regular {
-                iPadLayout
-            } else {
-                iPhoneLayout
+        ZStack {
+            Group {
+                if sizeClass == .regular {
+                    iPadLayout
+                } else {
+                    iPhoneLayout
+                }
             }
-        }
-        .task {
-            await libraryVM.load()
-            await SubtaskStore.shared.loadAll()
+            .task {
+                await libraryVM.load()
+                await SubtaskStore.shared.loadAll()
+            }
+
+            // Achievement popup — floats above everything
+            if let achievement = achievementStore.current {
+                AchievementPopupView(achievement: achievement) {
+                    achievementStore.dismiss()
+                }
+                .zIndex(999)
+                .transition(.opacity)
+            }
         }
     }
 

@@ -115,6 +115,7 @@ struct ArticleDetailView: View {
                                     currentLink.stars = n
                                     Haptics.tap()
                                     Task { await vm.updateStars(link: link, stars: n) }
+                                    if n == 5 { AchievementStore.shared.fiveStarRated() }
                                     // Auto-save full text when rating 5 stars
                                     if n == 5,
                                        ArticleFullTextStore.shared.fetch(linkId: currentLink.id) == nil {
@@ -361,6 +362,9 @@ struct ArticleDetailView: View {
                     currentLink.note = editedNote.isEmpty ? nil : editedNote
                     isEditingNote = false
                     Task { await vm.updateNote(link: link, note: editedNote) }
+                    if !editedNote.trimmingCharacters(in: .whitespaces).isEmpty {
+                        AchievementStore.shared.noteSaved()
+                    }
                     // Auto-save full text when adding a note for the first time
                     let trimmed = editedNote.trimmingCharacters(in: .whitespaces)
                     if !trimmed.isEmpty,
@@ -525,6 +529,7 @@ struct ArticleDetailView: View {
                 digest: digest,
                 wordCount: wordCount
             )
+            AchievementStore.shared.deepSaved()
             deepSavePhase = .saved(wordCount: wordCount, date: Date())
         } catch {
             deepSavePhase = .error(error.localizedDescription)

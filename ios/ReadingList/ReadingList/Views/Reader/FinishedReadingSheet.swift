@@ -58,6 +58,11 @@ struct FinishedReadingSheet: View {
                     Haptics.success()
                     Task {
                         await vm.updateStatus(link: link, status: "done")
+                        let totalRead = vm.allLinks.filter { $0.status == "done" }.count
+                        AchievementStore.shared.articleRead(link: link, totalRead: totalRead)
+                        if vm.allLinks.filter({ $0.status == "to-read" }).isEmpty {
+                            AchievementStore.shared.toReadCleared()
+                        }
                         withAnimation { saved = true }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                             withAnimation { saved = false; showReflectPrompt = true }
@@ -125,7 +130,10 @@ struct FinishedReadingSheet: View {
                         await vm.updateStatus(link: link, status: "done")
                         if !quickNote.isEmpty {
                             await vm.updateNote(link: link, note: quickNote)
+                            AchievementStore.shared.noteSaved()
                         }
+                        let totalRead = vm.allLinks.filter { $0.status == "done" }.count
+                        AchievementStore.shared.articleRead(link: link, totalRead: totalRead)
                         withAnimation { saved = true }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                             withAnimation { saved = false; showReflectPrompt = true }
