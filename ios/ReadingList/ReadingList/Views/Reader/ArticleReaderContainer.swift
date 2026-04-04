@@ -284,8 +284,8 @@ struct SafariSheet: UIViewControllerRepresentable {
 }
 
 // MARK: - YouTube Player WebView
-// Loads youtube.com/watch directly — avoids Error 152/153 (iframe embed restrictions).
-// Many video owners disable embedding; loading the watch URL bypasses this entirely.
+// Loads youtube.com/watch directly (no iframe — bypasses embed restrictions).
+// Injects CSS at document start to hide chrome, then triggers theater mode after load.
 
 struct YouTubePlayerView: UIViewRepresentable {
     let videoID: String
@@ -296,8 +296,53 @@ struct YouTubePlayerView: UIViewRepresentable {
         config.mediaTypesRequiringUserActionForPlayback = []
         config.allowsAirPlayForMediaPlayback = true
 
-        let webView = WKWebView(frame: .zero, configuration: config)
+        // Injected at document start — hides chrome before it renders
+        let css = """
+        #secondary, #comments, ytd-masthead, #masthead-container,
+        ytd-miniplayer, #above-the-fold, ytd-watch-metadata,
+        #related, .ytp-chrome-top-buttons, tp-yt-app-drawer,
+        ytd-feed-filter-chip-bar-renderer, #chips-wrapper,
+        #description-inner, ytd-structured-description-content-renderer,
+        ytd-engagement-panel-section-list-renderer,
+        #yt-masthead-logo, #logo-container {
+            display: none !important;
+        }
+        ytd-app { overflow: hidden !important; }
+        #page-manager { margin-top: 0 !important; }
+        ytd-watch-flexy #player-container-inner,
+        ytd-watch-flexy #player-theater-container,
+        #movie_player {
+            width: 100vw !important;
+            max-width: 100vw !important;
+        }
+        """
+        let cssScript = WKUserScript(
+            source: """
+            var s = document.createElement('style');
+            s.innerHTML = `\(css)`;
+            document.head.appendChild(s);
+            """,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+        config.userContentController.addUserScript(cssScript)
 
+        // Injected after load — activates theater mode so player fills width
+        let theaterScript = WKUserScript(
+            source: """
+            setTimeout(function() {
+                var el = document.querySelector('ytd-watch-flexy');
+                if (el) { el.setAttribute('theater', ''); el.setAttribute('full-bleed-player', ''); }
+                var btn = document.querySelector('.ytp-size-button');
+                if (btn && !document.querySelector('[theater]')) btn.click();
+            }, 1500);
+            """,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true
+        )
+        config.userContentController.addUserScript(theaterScript)
+
+        let webView = WKWebView(frame: .zero, configuration: config)
         if let url = URL(string: "https://www.youtube.com/watch?v=\(videoID)") {
             webView.load(URLRequest(url: url))
         }
