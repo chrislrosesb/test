@@ -253,8 +253,24 @@ struct IPadReadingPane: View {
                         .ignoresSafeArea()
                 }
             }
-            .sheet(isPresented: $showYouTubePlayer) {
-                YouTubePlayerSheet(videoID: youtubeVideoID)
+            .fullScreenCover(isPresented: $showYouTubePlayer) {
+                ZStack {
+                    YouTubePlayerView(videoID: youtubeVideoID)
+                        .ignoresSafeArea()
+                    VStack {
+                        HStack {
+                            Button { showYouTubePlayer = false } label: {
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                            Spacer()
+                        }
+                        .padding(16)
+                        Spacer()
+                    }
+                }
+                .background(Color.black)
             }
         }
     }

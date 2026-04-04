@@ -173,26 +173,32 @@ struct ArticleReaderContainer: View {
                     .ignoresSafeArea()
             }
         }
-        .sheet(isPresented: $showYouTubePlayer) {
-            YouTubePlayerSheet(videoID: youtubeVideoID)
+        .fullScreenCover(isPresented: $showYouTubePlayer) {
+            ZStack {
+                YouTubePlayerView(videoID: youtubeVideoID)
+                    .ignoresSafeArea()
+                VStack {
+                    HStack {
+                        Button { showYouTubePlayer = false } label: {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                        Spacer()
+                    }
+                    .padding(16)
+                    Spacer()
+                }
+            }
+            .background(Color.black)
         }
         .onAppear {
-            if isYouTubeLink {
-                if let videoID = Self.extractYouTubeID(currentLink.url) {
-                    youtubeVideoID = videoID
-                    showYouTubePlayer = true
-                }
-            } else if isSocialLink {
+            if isSocialLink {
                 showSafariView = true
             }
         }
         .onChange(of: currentIndex) { _, _ in
-            if isYouTubeLink {
-                if let videoID = Self.extractYouTubeID(currentLink.url) {
-                    youtubeVideoID = videoID
-                    showYouTubePlayer = true
-                }
-            } else if isSocialLink {
+            if isSocialLink {
                 showSafariView = true
             }
         }
@@ -202,7 +208,12 @@ struct ArticleReaderContainer: View {
 
     @ViewBuilder
     var readerContent: some View {
-        if let webURL = URL(string: currentLink.url) {
+        if isYouTubeLink, let videoID = Self.extractYouTubeID(currentLink.url) {
+            // Full-screen YouTube player for YouTube article URLs
+            YouTubePlayerView(videoID: videoID)
+                .ignoresSafeArea()
+                .id(currentLink.id + "youtube")
+        } else if let webURL = URL(string: currentLink.url) {
             if isReaderMode {
                 ReaderWebView(
                     url: webURL,
@@ -274,28 +285,6 @@ struct SafariSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
-}
-
-// MARK: - YouTube Player Sheet
-
-struct YouTubePlayerSheet: View {
-    let videoID: String
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            YouTubePlayerView(videoID: videoID)
-                .ignoresSafeArea(edges: .bottom)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button { dismiss() } label: {
-                            Image(systemName: "chevron.down")
-                        }
-                    }
-                }
-        }
-    }
 }
 
 // MARK: - YouTube Player WebView
