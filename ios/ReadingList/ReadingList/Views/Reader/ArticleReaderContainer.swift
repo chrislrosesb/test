@@ -174,23 +174,19 @@ struct ArticleReaderContainer: View {
             }
         }
         .fullScreenCover(isPresented: $showYouTubePlayer) {
-            ZStack {
+            NavigationStack {
                 YouTubePlayerView(videoID: youtubeVideoID)
-                    .ignoresSafeArea()
-                VStack {
-                    HStack {
-                        Button { showYouTubePlayer = false } label: {
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
+                    .ignoresSafeArea(edges: .bottom)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button { showYouTubePlayer = false } label: {
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 17, weight: .medium))
+                            }
                         }
-                        Spacer()
                     }
-                    .padding(16)
-                    Spacer()
-                }
             }
-            .background(Color.black)
         }
         .onAppear {
             if isSocialLink {
@@ -288,6 +284,8 @@ struct SafariSheet: UIViewControllerRepresentable {
 }
 
 // MARK: - YouTube Player WebView
+// Loads youtube.com/watch directly — avoids Error 152/153 (iframe embed restrictions).
+// Many video owners disable embedding; loading the watch URL bypasses this entirely.
 
 struct YouTubePlayerView: UIViewRepresentable {
     let videoID: String
@@ -299,46 +297,10 @@ struct YouTubePlayerView: UIViewRepresentable {
         config.allowsAirPlayForMediaPlayback = true
 
         let webView = WKWebView(frame: .zero, configuration: config)
-        webView.scrollView.isScrollEnabled = false
 
-        // Minimal UI YouTube embed parameters:
-        // - modestbranding=1: Hide YouTube logo
-        // - rel=0: Minimize related videos (YouTube only shows same-channel videos)
-        // - controls=1: Show player controls
-        // - fs=1: Enable fullscreen button
-        // - playsinline=1: Play inline in view (required for iOS)
-        // Note: Removed autoplay to avoid configuration errors on Mac Catalyst
-        let htmlString = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <meta charset="utf-8">
-            <style>
-                * { margin: 0; padding: 0; }
-                body { background: #000; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
-                iframe {
-                    width: 100%;
-                    height: 100%;
-                    border: none;
-                    display: block;
-                }
-            </style>
-        </head>
-        <body>
-            <iframe
-                width="100%"
-                height="100%"
-                src="https://www.youtube.com/embed/\(videoID)?modestbranding=1&rel=0&controls=1&fs=1&playsinline=1"
-                frameborder="0"
-                allowfullscreen>
-            </iframe>
-        </body>
-        </html>
-        """
-
-        // baseURL must be a real origin — YouTube blocks embeds from null/empty origins (Error 153)
-        webView.loadHTMLString(htmlString, baseURL: URL(string: "https://www.youtube.com"))
+        if let url = URL(string: "https://www.youtube.com/watch?v=\(videoID)") {
+            webView.load(URLRequest(url: url))
+        }
         return webView
     }
 

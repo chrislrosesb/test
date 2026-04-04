@@ -254,23 +254,19 @@ struct IPadReadingPane: View {
                 }
             }
             .fullScreenCover(isPresented: $showYouTubePlayer) {
-                ZStack {
+                NavigationStack {
                     YouTubePlayerView(videoID: youtubeVideoID)
-                        .ignoresSafeArea()
-                    VStack {
-                        HStack {
-                            Button { showYouTubePlayer = false } label: {
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.white)
+                        .ignoresSafeArea(edges: .bottom)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button { showYouTubePlayer = false } label: {
+                                    Image(systemName: "chevron.down")
+                                        .font(.system(size: 17, weight: .medium))
+                                }
                             }
-                            Spacer()
                         }
-                        .padding(16)
-                        Spacer()
-                    }
                 }
-                .background(Color.black)
             }
         }
     }
