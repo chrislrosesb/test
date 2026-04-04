@@ -318,16 +318,16 @@ struct YouTubePlayerView: UIViewRepresentable {
         // - controls=1: Show player controls
         // - fs=1: Enable fullscreen button
         // - playsinline=1: Play inline in view (required for iOS)
-        // - autoplay=1: Start playing automatically
-        // - mute=1: Muted autoplay (required for iOS autoplay to work)
+        // Note: Removed autoplay to avoid configuration errors on Mac Catalyst
         let htmlString = """
         <!DOCTYPE html>
         <html>
         <head>
             <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta charset="utf-8">
             <style>
                 * { margin: 0; padding: 0; }
-                body { background: #000; width: 100vw; height: 100vh; }
+                body { background: #000; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
                 iframe {
                     width: 100%;
                     height: 100%;
@@ -338,8 +338,10 @@ struct YouTubePlayerView: UIViewRepresentable {
         </head>
         <body>
             <iframe
-                src="https://www.youtube.com/embed/\(videoID)?autoplay=1&mute=1&modestbranding=1&rel=0&controls=1&fs=1&playsinline=1"
-                allow="autoplay; encrypted-media; fullscreen"
+                width="100%"
+                height="100%"
+                src="https://www.youtube.com/embed/\(videoID)?modestbranding=1&rel=0&controls=1&fs=1&playsinline=1"
+                frameborder="0"
                 allowfullscreen>
             </iframe>
         </body>
