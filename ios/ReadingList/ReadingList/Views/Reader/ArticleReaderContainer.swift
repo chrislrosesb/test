@@ -60,6 +60,7 @@ struct ArticleReaderContainer: View {
     }
 
     var isSocialLink: Bool { Self.isSocialURL(currentLink.url) }
+    var isYouTubeLink: Bool { Self.extractYouTubeID(currentLink.url) != nil }
 
     @AppStorage("readerFontSize") private var fontSize: Double = 17
     @AppStorage("readerFont") private var fontRaw: String = "system"
@@ -176,10 +177,24 @@ struct ArticleReaderContainer: View {
             YouTubePlayerSheet(videoID: youtubeVideoID)
         }
         .onAppear {
-            if isSocialLink { showSafariView = true }
+            if isYouTubeLink {
+                if let videoID = Self.extractYouTubeID(currentLink.url) {
+                    youtubeVideoID = videoID
+                    showYouTubePlayer = true
+                }
+            } else if isSocialLink {
+                showSafariView = true
+            }
         }
         .onChange(of: currentIndex) { _, _ in
-            if isSocialLink { showSafariView = true }
+            if isYouTubeLink {
+                if let videoID = Self.extractYouTubeID(currentLink.url) {
+                    youtubeVideoID = videoID
+                    showYouTubePlayer = true
+                }
+            } else if isSocialLink {
+                showSafariView = true
+            }
         }
     }
 

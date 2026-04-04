@@ -238,8 +238,13 @@ struct IPadReadingPane: View {
             .onChange(of: selectedLink) { _, newLink in
                 isReaderMode = false
                 isInfoMode = false
-                if let link = newLink, Self.isSocialURL(link.url) {
-                    showSafariView = true
+                if let link = newLink {
+                    if let videoID = Self.extractYouTubeID(link.url) {
+                        youtubeVideoID = videoID
+                        showYouTubePlayer = true
+                    } else if Self.isSocialURL(link.url) {
+                        showSafariView = true
+                    }
                 }
             }
             .sheet(isPresented: $showSafariView) {
