@@ -139,12 +139,47 @@ struct IPadReadingPane: View {
     @State private var showTypography: Bool = false
     @State private var reflectLink: Link? = nil
     @State private var showSafariView: Bool = false
+    @State private var youtubeVideoID: String = ""
+    @State private var showYouTubePlayer: Bool = false
 
     static func isSocialURL(_ urlString: String) -> Bool {
         guard let host = URL(string: urlString)?.host?.lowercased() else { return false }
         return host.contains("threads.net") || host.contains("x.com") ||
                host.contains("twitter.com") || host.contains("instagram.com")
     }
+
+    // Extract YouTube video ID from various URL formats
+    static func extractYouTubeID(_ urlString: String) -> String? {
+        guard let url = URL(string: urlString), let host = url.host?.lowercased() else { return nil }
+
+        // youtu.be/VIDEO_ID
+        if host.contains("youtu.be") {
+            let path = url.path.dropFirst() // Remove leading "/"
+            return path.isEmpty ? nil : String(path)
+        }
+
+        // youtube.com, youtube-nocookie.com: look for v= parameter or /embed/
+        if host.contains("youtube") {
+            // Check for /embed/VIDEO_ID
+            if url.path.contains("/embed/") {
+                let components = url.path.split(separator: "/")
+                if let index = components.firstIndex(of: "embed"),
+                   components.index(after: index) < components.endIndex {
+                    return String(components[components.index(after: index)])
+                }
+            }
+
+            // Check for v= parameter
+            if let components = URLComponents(url: url, resolvingAgainstBaseURL: true),
+               let queryItems = components.queryItems,
+               let videoID = queryItems.first(where: { $0.name == "v" })?.value {
+                return videoID
+            }
+        }
+
+        return nil
+    }
+
     @AppStorage("libraryViewMode") private var viewMode: String = "cards"
     @AppStorage("readerFontSize") private var fontSize: Double = 17
     @AppStorage("readerFont") private var fontRaw: String = "system"
@@ -212,6 +247,9 @@ struct IPadReadingPane: View {
                     SafariSheet(url: url)
                         .ignoresSafeArea()
                 }
+            }
+            .sheet(isPresented: $showYouTubePlayer) {
+                YouTubePlayerSheet(videoID: youtubeVideoID)
             }
         }
     }
@@ -300,8 +338,11 @@ struct IPadReadingPane: View {
                     )
                     .id(link.id + "reader")
                 } else {
-                    WebView(url: url, linkId: link.id)
-                        .id(link.id)
+                    WebView(url: url, linkId: link.id) { videoID in
+                        youtubeVideoID = videoID
+                        showYouTubePlayer = true
+                    }
+                    .id(link.id)
                 }
             }
             .ignoresSafeArea(edges: .bottom)

@@ -1,6 +1,8 @@
 import SwiftUI
+import WebKit
+import SafariServices
 
-/// Full-screen immersive reader with swipe navigation between articles.
+/// Full-screen immersive reader with swipe navigation between articles
 struct ArticleReaderContainer: View {
     let links: [Link]
     let initialIndex: Int
@@ -15,12 +17,46 @@ struct ArticleReaderContainer: View {
     @State private var showSafariView = false
     @State private var isReaderMode = false
     @State private var reflectLink: Link? = nil
+    @State private var youtubeVideoID: String = ""
+    @State private var showYouTubePlayer = false
 
     // Auto-open social platforms (Threads, X, Instagram) in Safari View so shared login works
     static func isSocialURL(_ urlString: String) -> Bool {
         guard let host = URL(string: urlString)?.host?.lowercased() else { return false }
         return host.contains("threads.net") || host.contains("x.com") ||
                host.contains("twitter.com") || host.contains("instagram.com")
+    }
+
+    // Extract YouTube video ID from various URL formats
+    static func extractYouTubeID(_ urlString: String) -> String? {
+        guard let url = URL(string: urlString), let host = url.host?.lowercased() else { return nil }
+
+        // youtu.be/VIDEO_ID
+        if host.contains("youtu.be") {
+            let path = url.path.dropFirst() // Remove leading "/"
+            return path.isEmpty ? nil : String(path)
+        }
+
+        // youtube.com, youtube-nocookie.com: look for v= parameter or /embed/
+        if host.contains("youtube") {
+            // Check for /embed/VIDEO_ID
+            if url.path.contains("/embed/") {
+                let components = url.path.split(separator: "/")
+                if let index = components.firstIndex(of: "embed"),
+                   components.index(after: index) < components.endIndex {
+                    return String(components[components.index(after: index)])
+                }
+            }
+
+            // Check for v= parameter
+            if let components = URLComponents(url: url, resolvingAgainstBaseURL: true),
+               let queryItems = components.queryItems,
+               let videoID = queryItems.first(where: { $0.name == "v" })?.value {
+                return videoID
+            }
+        }
+
+        return nil
     }
 
     var isSocialLink: Bool { Self.isSocialURL(currentLink.url) }
@@ -136,6 +172,9 @@ struct ArticleReaderContainer: View {
                     .ignoresSafeArea()
             }
         }
+        .sheet(isPresented: $showYouTubePlayer) {
+            YouTubePlayerSheet(videoID: youtubeVideoID)
+        }
         .onAppear {
             if isSocialLink { showSafariView = true }
         }
@@ -161,9 +200,12 @@ struct ArticleReaderContainer: View {
                 .id(currentLink.id + "reader")
                 .ignoresSafeArea(edges: .bottom)
             } else {
-                WebView(url: webURL, linkId: currentLink.id)
-                    .id(currentLink.id + "web")
-                    .ignoresSafeArea(edges: .bottom)
+                WebView(url: webURL, linkId: currentLink.id) { videoID in
+                    youtubeVideoID = videoID
+                    showYouTubePlayer = true
+                }
+                .id(currentLink.id + "web")
+                .ignoresSafeArea(edges: .bottom)
             }
         } else {
             ContentUnavailableView("Invalid URL", systemImage: "link.badge.plus")
@@ -206,8 +248,6 @@ struct ArticleReaderContainer: View {
 
 // MARK: - Safari View (shares Safari's cookies/logins)
 
-import SafariServices
-
 struct SafariSheet: UIViewControllerRepresentable {
     let url: URL
 
@@ -219,5 +259,82 @@ struct SafariSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
+}
+
+// MARK: - YouTube Player Sheet
+
+struct YouTubePlayerSheet: View {
+    let videoID: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            YouTubePlayerView(videoID: videoID)
+                .ignoresSafeArea(edges: .bottom)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { dismiss() } label: {
+                            Image(systemName: "chevron.down")
+                        }
+                    }
+                }
+        }
+    }
+}
+
+// MARK: - YouTube Player WebView
+
+struct YouTubePlayerView: UIViewRepresentable {
+    let videoID: String
+
+    func makeUIView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        config.allowsInlineMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
+        config.allowsAirPlayForMediaPlayback = true
+
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.scrollView.isScrollEnabled = false
+
+        // Minimal UI YouTube embed parameters:
+        // - modestbranding=1: Hide YouTube logo
+        // - rel=0: Minimize related videos (YouTube only shows same-channel videos)
+        // - controls=1: Show player controls
+        // - fs=1: Enable fullscreen button
+        // - playsinline=1: Play inline in view (required for iOS)
+        // - autoplay=1: Start playing automatically
+        // - mute=1: Muted autoplay (required for iOS autoplay to work)
+        let htmlString = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                * { margin: 0; padding: 0; }
+                body { background: #000; width: 100vw; height: 100vh; }
+                iframe {
+                    width: 100%;
+                    height: 100%;
+                    border: none;
+                    display: block;
+                }
+            </style>
+        </head>
+        <body>
+            <iframe
+                src="https://www.youtube.com/embed/\(videoID)?autoplay=1&mute=1&modestbranding=1&rel=0&controls=1&fs=1&playsinline=1"
+                allow="autoplay; encrypted-media; fullscreen"
+                allowfullscreen>
+            </iframe>
+        </body>
+        </html>
+        """
+
+        webView.loadHTMLString(htmlString, baseURL: nil)
+        return webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {}
 }
 

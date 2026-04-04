@@ -498,9 +498,10 @@ enum SharedWebConfig {
 struct WebView: UIViewRepresentable {
     let url: URL
     var linkId: String = ""
+    var onYouTubeDetected: ((String) -> Void)? = nil
 
     func makeCoordinator() -> WebViewCoordinator {
-        WebViewCoordinator()
+        WebViewCoordinator(onYouTubeDetected: onYouTubeDetected)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -544,6 +545,11 @@ class WebViewCoordinator: NSObject, WKUIDelegate, WKNavigationDelegate {
     var linkId: String = ""
     var scrollObservation: NSKeyValueObservation?
     var saveTimer: Timer?
+    var onYouTubeDetected: ((String) -> Void)?
+
+    init(onYouTubeDetected: ((String) -> Void)? = nil) {
+        self.onYouTubeDetected = onYouTubeDetected
+    }
 
     // Debounce scroll saves — fires 0.6 s after the user stops scrolling
     func schedulePositionSave(y: Double) {
@@ -580,4 +586,64 @@ class WebViewCoordinator: NSObject, WKUIDelegate, WKNavigationDelegate {
     }
 
     func webViewDidClose(_ webView: WKWebView) {}
+
+    // Intercept navigation to detect YouTube links
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    ) {
+        guard let url = navigationAction.request.url else {
+            decisionHandler(.allow)
+            return
+        }
+
+        // Only intercept link clicks, not initial page loads
+        guard navigationAction.navigationType == .linkActivated else {
+            decisionHandler(.allow)
+            return
+        }
+
+        // Check if this is a YouTube URL
+        if let videoID = extractYouTubeID(url.absoluteString) {
+            onYouTubeDetected?(videoID)
+            decisionHandler(.cancel)
+            return
+        }
+
+        // Allow all other links
+        decisionHandler(.allow)
+    }
+
+    // Extract YouTube video ID from URL
+    private func extractYouTubeID(_ urlString: String) -> String? {
+        guard let url = URL(string: urlString), let host = url.host?.lowercased() else { return nil }
+
+        // youtu.be/VIDEO_ID
+        if host.contains("youtu.be") {
+            let path = url.path.dropFirst() // Remove leading "/"
+            return path.isEmpty ? nil : String(path)
+        }
+
+        // youtube.com, youtube-nocookie.com: look for v= parameter or /embed/
+        if host.contains("youtube") {
+            // Check for /embed/VIDEO_ID
+            if url.path.contains("/embed/") {
+                let components = url.path.split(separator: "/")
+                if let index = components.firstIndex(of: "embed"),
+                   components.index(after: index) < components.endIndex {
+                    return String(components[components.index(after: index)])
+                }
+            }
+
+            // Check for v= parameter
+            if let components = URLComponents(url: url, resolvingAgainstBaseURL: true),
+               let queryItems = components.queryItems,
+               let videoID = queryItems.first(where: { $0.name == "v" })?.value {
+                return videoID
+            }
+        }
+
+        return nil
+    }
 }
