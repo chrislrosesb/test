@@ -296,51 +296,28 @@ struct YouTubePlayerView: UIViewRepresentable {
         config.mediaTypesRequiringUserActionForPlayback = []
         config.allowsAirPlayForMediaPlayback = true
 
-        // Injected at document start — hides chrome before it renders
+        // Hide chrome — only sidebar/comments/nav, never the player itself
         let css = """
-        #secondary, #comments, ytd-masthead, #masthead-container,
-        ytd-miniplayer, #above-the-fold, ytd-watch-metadata,
-        #related, .ytp-chrome-top-buttons, tp-yt-app-drawer,
-        ytd-feed-filter-chip-bar-renderer, #chips-wrapper,
-        #description-inner, ytd-structured-description-content-renderer,
-        ytd-engagement-panel-section-list-renderer,
-        #yt-masthead-logo, #logo-container {
+        #secondary,
+        #comments,
+        ytd-masthead,
+        #masthead-container,
+        tp-yt-app-drawer,
+        ytd-miniplayer {
             display: none !important;
         }
-        ytd-app { overflow: hidden !important; }
         #page-manager { margin-top: 0 !important; }
-        ytd-watch-flexy #player-container-inner,
-        ytd-watch-flexy #player-theater-container,
-        #movie_player {
-            width: 100vw !important;
-            max-width: 100vw !important;
-        }
         """
         let cssScript = WKUserScript(
             source: """
             var s = document.createElement('style');
-            s.innerHTML = `\(css)`;
-            document.head.appendChild(s);
+            s.textContent = `\(css)`;
+            (document.head || document.documentElement).appendChild(s);
             """,
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         )
         config.userContentController.addUserScript(cssScript)
-
-        // Injected after load — activates theater mode so player fills width
-        let theaterScript = WKUserScript(
-            source: """
-            setTimeout(function() {
-                var el = document.querySelector('ytd-watch-flexy');
-                if (el) { el.setAttribute('theater', ''); el.setAttribute('full-bleed-player', ''); }
-                var btn = document.querySelector('.ytp-size-button');
-                if (btn && !document.querySelector('[theater]')) btn.click();
-            }, 1500);
-            """,
-            injectionTime: .atDocumentEnd,
-            forMainFrameOnly: true
-        )
-        config.userContentController.addUserScript(theaterScript)
 
         let webView = WKWebView(frame: .zero, configuration: config)
         if let url = URL(string: "https://www.youtube.com/watch?v=\(videoID)") {
