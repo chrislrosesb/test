@@ -337,7 +337,8 @@ struct YouTubePlayerView: UIViewRepresentable {
         </html>
         """
 
-        webView.loadHTMLString(htmlString, baseURL: nil)
+        // baseURL must be a real origin — YouTube blocks embeds from null/empty origins (Error 153)
+        webView.loadHTMLString(htmlString, baseURL: URL(string: "https://www.youtube.com"))
         return webView
     }
 
