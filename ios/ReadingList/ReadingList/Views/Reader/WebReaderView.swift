@@ -480,6 +480,29 @@ struct ReaderWebView: UIViewRepresentable {
 
 // MARK: - Full WebView (unchanged)
 
+// MARK: - WKWebView pool — reuses the last N web views so revisiting an article is instant
+
+final class WebViewPool {
+    static let shared = WebViewPool()
+    private var pool: [(linkId: String, webView: WKWebView)] = []
+    private let maxSize = 5
+
+    /// Removes and returns the cached web view for this linkId, or nil if not cached.
+    func checkout(linkId: String) -> WKWebView? {
+        guard let idx = pool.firstIndex(where: { $0.linkId == linkId }) else { return nil }
+        let wv = pool[idx].webView
+        pool.remove(at: idx)
+        return wv
+    }
+
+    /// Returns a web view to the pool. Evicts least-recently-used if over capacity.
+    func checkin(linkId: String, webView: WKWebView) {
+        pool.removeAll { $0.linkId == linkId }
+        pool.insert((linkId, webView), at: 0)
+        if pool.count > maxSize { pool.removeLast() }
+    }
+}
+
 // MARK: - Shared web config (persists cookies/logins between sessions)
 
 enum SharedWebConfig {
@@ -508,6 +531,18 @@ struct WebView: UIViewRepresentable {
         let c = context.coordinator
         c.linkId = linkId
 
+        // Reuse a cached web view for this article — page is already loaded, scroll position intact
+        if let cached = WebViewPool.shared.checkout(linkId: linkId) {
+            cached.uiDelegate = c
+            cached.navigationDelegate = c
+            c.scrollObservation = cached.scrollView.observe(
+                \.contentOffset, options: [.new]
+            ) { [weak c] scrollView, _ in
+                c?.schedulePositionSave(y: Double(scrollView.contentOffset.y))
+            }
+            return cached
+        }
+
         let webView = WKWebView(frame: .zero, configuration: SharedWebConfig.makeConfiguration())
         webView.allowsBackForwardNavigationGestures = true
         webView.uiDelegate = c
@@ -531,12 +566,16 @@ struct WebView: UIViewRepresentable {
     }
 
     static func dismantleUIView(_ webView: WKWebView, coordinator: WebViewCoordinator) {
-        // Final authoritative save using the webView directly (coordinator.parentWebView
-        // is a weak ref that may already be nil at this point)
+        // Final authoritative save using the webView directly
         let y = Double(webView.scrollView.contentOffset.y)
         ScrollPositionStore.shared.save(linkId: coordinator.linkId, readerMode: false, y: y)
         coordinator.scrollObservation?.invalidate()
         coordinator.saveTimer?.invalidate()
+
+        // Clear delegates before pooling so the old coordinator isn't retained
+        webView.uiDelegate = nil
+        webView.navigationDelegate = nil
+        WebViewPool.shared.checkin(linkId: coordinator.linkId, webView: webView)
     }
 }
 

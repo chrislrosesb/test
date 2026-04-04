@@ -316,85 +316,99 @@ final class LibraryViewModel {
 
     // MARK: - Updates
 
+    /// Applies a mutation to the in-memory Link immediately (optimistic update).
+    private func applyLocal(id: String, _ mutate: (inout Link) -> Void) {
+        guard let idx = allLinks.firstIndex(where: { $0.id == id }) else { return }
+        mutate(&allLinks[idx])
+    }
+
+    /// Reverts to server state after a failed PATCH.
+    private func revertToServer() async {
+        allLinks = (try? await SupabaseClient.shared.fetchLinks()) ?? allLinks
+    }
+
     func updateStatus(link: Link, status: String?) async {
         let read = status == "done"
+        applyLocal(id: link.id) { $0.status = status; $0.read = read }
         var fields: [String: Any] = ["read": read]
-        if let status {
-            fields["status"] = status
-        } else {
-            fields["status"] = NSNull()
-        }
+        if let status { fields["status"] = status } else { fields["status"] = NSNull() }
         do {
             try await SupabaseClient.shared.updateLink(id: link.id, fields: fields)
-            // Refetch all data to guarantee UI is in sync
-            allLinks = (try? await SupabaseClient.shared.fetchLinks()) ?? allLinks
         } catch {
             print("❌ updateStatus failed for \(link.id): \(error)")
             errorMessage = error.localizedDescription
+            await revertToServer()
         }
     }
 
     func updateStars(link: Link, stars: Int) async {
+        applyLocal(id: link.id) { $0.stars = stars }
         do {
             try await SupabaseClient.shared.updateLink(id: link.id, fields: ["stars": stars])
-            allLinks = (try? await SupabaseClient.shared.fetchLinks()) ?? allLinks
         } catch {
             errorMessage = error.localizedDescription
+            await revertToServer()
         }
     }
 
     func updateNote(link: Link, note: String) async {
+        applyLocal(id: link.id) { $0.note = note.isEmpty ? nil : note }
         do {
             try await SupabaseClient.shared.updateLink(id: link.id, fields: ["note": note])
-            allLinks = (try? await SupabaseClient.shared.fetchLinks()) ?? allLinks
         } catch {
             errorMessage = error.localizedDescription
+            await revertToServer()
         }
     }
 
     func updateTitle(link: Link, title: String) async {
+        applyLocal(id: link.id) { $0.title = title }
         do {
             try await SupabaseClient.shared.updateLink(id: link.id, fields: ["title": title])
-            allLinks = (try? await SupabaseClient.shared.fetchLinks()) ?? allLinks
         } catch {
             errorMessage = error.localizedDescription
+            await revertToServer()
         }
     }
 
     func updateTags(link: Link, tags: String?) async {
+        applyLocal(id: link.id) { $0.tags = tags?.isEmpty == false ? tags : nil }
         var fields: [String: Any] = [:]
-        if let tags, !tags.isEmpty { fields["tags"] = tags }
-        else { fields["tags"] = NSNull() }
+        if let tags, !tags.isEmpty { fields["tags"] = tags } else { fields["tags"] = NSNull() }
         do {
             try await SupabaseClient.shared.updateLink(id: link.id, fields: fields)
-            allLinks = (try? await SupabaseClient.shared.fetchLinks()) ?? allLinks
         } catch {
             errorMessage = error.localizedDescription
+            await revertToServer()
         }
     }
 
     func updateCategory(link: Link, category: String?) async {
+        applyLocal(id: link.id) { $0.category = category }
         var fields: [String: Any] = [:]
-        if let category {
-            fields["category"] = category
-        } else {
-            fields["category"] = NSNull()
-        }
+        if let category { fields["category"] = category } else { fields["category"] = NSNull() }
         do {
             try await SupabaseClient.shared.updateLink(id: link.id, fields: fields)
-            allLinks = (try? await SupabaseClient.shared.fetchLinks()) ?? allLinks
         } catch {
             errorMessage = error.localizedDescription
+            await revertToServer()
         }
     }
 
     func updateEnrich(link: Link, fields: [String: Any]) async {
         guard !fields.isEmpty else { return }
+        applyLocal(id: link.id) { l in
+            if let v = fields["title"] as? String { l.title = v }
+            if let v = fields["summary"] as? String { l.summary = v }
+            if let v = fields["tags"] as? String { l.tags = v }
+            if let v = fields["category"] as? String { l.category = v }
+            if let v = fields["status"] as? String { l.status = v; l.read = (v == "done") }
+        }
         do {
             try await SupabaseClient.shared.updateLink(id: link.id, fields: fields)
-            allLinks = (try? await SupabaseClient.shared.fetchLinks()) ?? allLinks
         } catch {
             errorMessage = error.localizedDescription
+            await revertToServer()
         }
     }
 
