@@ -103,14 +103,15 @@ All pages have OG + Twitter Card meta tags. `og-image.png` + `og-reading-list.pn
 - SwiftUI, iOS 26 target, Liquid Glass design language
 - Same Supabase backend as website (shared data)
 - On-device AI via `FoundationModels` framework (iOS 26+)
-- No Share Extension (avoids $99/yr dev account)
-- Saving stays via iOS Shortcut/bookmarklet
+- **Signing:** ASEVA LLC team `2V5659YMQ8` (paid Apple Developer account). Bundle IDs: `com.aseva.procrastinate` (app), `.widget`, `.share`. Distributed via TestFlight Internal Testing.
+- **Share Extension** (`ProcrastinateShare` target): native iOS/macOS share sheet saving. Legacy iOS Shortcut/bookmarklet still works.
 - App lives in `/ios/ReadingList/`
 - Mac Catalyst enabled (`SUPPORTS_MACCATALYST = YES`; `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO`)
 
 ### Architecture
 - **`@Observable` + `@MainActor`** throughout — `LibraryViewModel` is the single source of truth
-- **`SupabaseClient.shared`** — raw URLSession + JSONDecoder, no SDK
+- **`SupabaseClient.shared`** — raw URLSession + JSONDecoder, no SDK. Auth tokens live in the app group `group.com.aseva.procrastinate` (UserDefaults suite) so the share extension can authenticate; migrates from `UserDefaults.standard` on first launch.
+- **`ProcrastinateShare`** — share extension target, single self-contained file (`ShareViewController.swift`): extracts URL → fetches OG metadata directly (YouTube via oEmbed for stable thumbnails, parity with website) → POSTs to `links` → "Saved ✓" card. Duplicates Supabase config/insert (~60 lines) rather than sharing files across targets.
 - **`SubtaskStore.shared`** — Supabase-backed subtasks (syncs across devices)
 - **`ArticleFullTextStore`** — SwiftData on-device only for `rawText`; `digest` field is synced to Supabase `links.digest` column on save
 - Tabs: **Read → Do → Library → Discover** (default: Read)
@@ -194,6 +195,8 @@ ios/ReadingList/ReadingList/
 │                    DigestNotificationManager, CachedAsyncImage, StatusHelpers,
 │                    BounceStyle (+Haptics), Color+Hex
 └── Supabase/        SupabaseClient.swift, NewsAPIConfig.swift (Discover Similar)
+
+ios/ReadingList/ProcrastinateShare/   Share extension (ShareViewController.swift, Info.plist, entitlements)
 ```
 
 ### AI Features Summary
@@ -283,7 +286,8 @@ The on-device model has a small context window (~4K tokens total including promp
 - **`EnrichSheetView` is dead code:** Not presented by any view. Single-article enrich needs re-wiring.
 - **Subtask sync:** `subtasks` table must exist in Supabase with RLS policies allowing public CRUD.
 - **`recipients` / `recipient_batches` tables** must be created manually in Supabase SQL editor if not done yet. If `createRecipient` or `createBatch` fails, check Xcode console for ❌ error lines.
-- **Mac app distribution:** Without $99/yr Apple Developer account, build from Xcode + copy to `/Applications` manually. Free certs expire every 7 days.
+- **Mac Catalyst dev builds** need this Mac registered as a device on the ASEVA LLC team (Provisioning UDID `00008132-001229812206401C`) — iOS device/TestFlight builds don't.
+- **TestFlight uploads:** `xcodebuild archive` + `-exportArchive` with `method: app-store-connect, destination: upload` (`ios/build/ExportOptions.plist` pattern; `ios/build/` is gitignored). Bump `CURRENT_PROJECT_VERSION` on every upload.
 - **NewsAPI key** in `NewsAPIConfig.swift` is hardcoded in source (free tier, 100 req/day). Low risk but visible in public repo.
 
 *Last updated: 2026-04-02 by Claude Code*

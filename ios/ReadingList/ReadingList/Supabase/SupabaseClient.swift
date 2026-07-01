@@ -31,6 +31,18 @@ final class SupabaseClient {
     static let shared = SupabaseClient()
     private init() {}
 
+    // Tokens live in the app group so the share extension can authenticate.
+    // Migrates from UserDefaults.standard so pre-app-group sessions survive.
+    private static let defaults: UserDefaults = {
+        guard let group = UserDefaults(suiteName: "group.com.aseva.procrastinate") else { return .standard }
+        if group.string(forKey: "supabase_access_token") == nil,
+           let access = UserDefaults.standard.string(forKey: "supabase_access_token") {
+            group.set(access, forKey: "supabase_access_token")
+            group.set(UserDefaults.standard.string(forKey: "supabase_refresh_token"), forKey: "supabase_refresh_token")
+        }
+        return group
+    }()
+
     private let decoder: JSONDecoder = {
         let d = JSONDecoder()
         let frac = ISO8601DateFormatter()
@@ -50,8 +62,8 @@ final class SupabaseClient {
     // MARK: - Token
 
     var accessToken: String? {
-        get { UserDefaults.standard.string(forKey: "supabase_access_token") }
-        set { UserDefaults.standard.set(newValue, forKey: "supabase_access_token") }
+        get { Self.defaults.string(forKey: "supabase_access_token") }
+        set { Self.defaults.set(newValue, forKey: "supabase_access_token") }
     }
 
     var isAuthenticated: Bool { accessToken != nil }
@@ -75,17 +87,17 @@ final class SupabaseClient {
 
         struct AuthResp: Decodable { let access_token: String; let refresh_token: String }
         let auth = try JSONDecoder().decode(AuthResp.self, from: data)
-        UserDefaults.standard.set(auth.access_token, forKey: "supabase_access_token")
-        UserDefaults.standard.set(auth.refresh_token, forKey: "supabase_refresh_token")
+        Self.defaults.set(auth.access_token, forKey: "supabase_access_token")
+        Self.defaults.set(auth.refresh_token, forKey: "supabase_refresh_token")
     }
 
     func signOut() {
-        UserDefaults.standard.removeObject(forKey: "supabase_access_token")
-        UserDefaults.standard.removeObject(forKey: "supabase_refresh_token")
+        Self.defaults.removeObject(forKey: "supabase_access_token")
+        Self.defaults.removeObject(forKey: "supabase_refresh_token")
     }
 
     func refreshSession() async throws {
-        guard let refreshToken = UserDefaults.standard.string(forKey: "supabase_refresh_token") else {
+        guard let refreshToken = Self.defaults.string(forKey: "supabase_refresh_token") else {
             throw SupabaseError.auth("No refresh token. Please sign in again.")
         }
         let url = URL(string: "\(Config.baseURL)/auth/v1/token?grant_type=refresh_token")!
@@ -102,8 +114,8 @@ final class SupabaseClient {
         }
         struct AuthResp: Decodable { let access_token: String; let refresh_token: String }
         let auth = try JSONDecoder().decode(AuthResp.self, from: data)
-        UserDefaults.standard.set(auth.access_token, forKey: "supabase_access_token")
-        UserDefaults.standard.set(auth.refresh_token, forKey: "supabase_refresh_token")
+        Self.defaults.set(auth.access_token, forKey: "supabase_access_token")
+        Self.defaults.set(auth.refresh_token, forKey: "supabase_refresh_token")
     }
 
     // MARK: - Read
@@ -146,7 +158,7 @@ final class SupabaseClient {
                 try await refreshSession()
             } catch {
                 accessToken = nil
-                UserDefaults.standard.removeObject(forKey: "supabase_refresh_token")
+                Self.defaults.removeObject(forKey: "supabase_refresh_token")
             }
             return try await get(url: url, type: type, retried: true)
         }

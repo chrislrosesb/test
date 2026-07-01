@@ -10,6 +10,7 @@
 		9A53C9242F705B9900E9CD72 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9A53C9232F705B9900E9CD72 /* WidgetKit.framework */; };
 		9A53C9262F705B9900E9CD72 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9A53C9252F705B9900E9CD72 /* SwiftUI.framework */; };
 		9A53C9312F705B9A00E9CD72 /* ReadlingListWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9A53C9212F705B9900E9CD72 /* ReadlingListWidgetExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AA53CE022F70AAAA00E9CD72 /* ProcrastinateShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AA53CE012F70AAAA00E9CD72 /* ProcrastinateShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -19,6 +20,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 9A53C9202F705B9900E9CD72;
 			remoteInfo = ReadlingListWidgetExtension;
+		};
+		AA53CE032F70AAAA00E9CD72 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9A2A56492F6F938F00FFB56C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA53CE052F70AAAA00E9CD72;
+			remoteInfo = ProcrastinateShare;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -30,6 +38,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				9A53C9312F705B9A00E9CD72 /* ReadlingListWidgetExtension.appex in Embed Foundation Extensions */,
+				AA53CE022F70AAAA00E9CD72 /* ProcrastinateShare.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -41,6 +50,7 @@
 		9A53C9212F705B9900E9CD72 /* ReadlingListWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ReadlingListWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A53C9232F705B9900E9CD72 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		9A53C9252F705B9900E9CD72 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		AA53CE012F70AAAA00E9CD72 /* ProcrastinateShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ProcrastinateShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -55,8 +65,17 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				ReadingList.entitlements,
 			);
 			target = 9A2A56502F6F938F00FFB56C /* ReadingList */;
+		};
+		AA53CE0A2F70AAAA00E9CD72 /* Exceptions for "ProcrastinateShare" folder in "ProcrastinateShare" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				ProcrastinateShare.entitlements,
+			);
+			target = AA53CE052F70AAAA00E9CD72 /* ProcrastinateShare */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -75,6 +94,14 @@
 				9A53C9322F705B9A00E9CD72 /* Exceptions for "ReadlingListWidget" folder in "ReadlingListWidgetExtension" target */,
 			);
 			path = ReadlingListWidget;
+			sourceTree = "<group>";
+		};
+		AA53CE092F70AAAA00E9CD72 /* ProcrastinateShare */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AA53CE0A2F70AAAA00E9CD72 /* Exceptions for "ProcrastinateShare" folder in "ProcrastinateShare" target */,
+			);
+			path = ProcrastinateShare;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -96,6 +123,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AA53CE072F70AAAA00E9CD72 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -104,6 +138,7 @@
 			children = (
 				9A2A56532F6F938F00FFB56C /* ReadingList */,
 				9A53C9272F705B9900E9CD72 /* ReadlingListWidget */,
+				AA53CE092F70AAAA00E9CD72 /* ProcrastinateShare */,
 				9A53C9222F705B9900E9CD72 /* Frameworks */,
 				9A2A56522F6F938F00FFB56C /* Products */,
 			);
@@ -114,6 +149,7 @@
 			children = (
 				9A2A56512F6F938F00FFB56C /* ReadingList.app */,
 				9A53C9212F705B9900E9CD72 /* ReadlingListWidgetExtension.appex */,
+				AA53CE012F70AAAA00E9CD72 /* ProcrastinateShare.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -143,6 +179,7 @@
 			);
 			dependencies = (
 				9A53C9302F705B9A00E9CD72 /* PBXTargetDependency */,
+				AA53CE042F70AAAA00E9CD72 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				9A2A56532F6F938F00FFB56C /* ReadingList */,
@@ -176,6 +213,28 @@
 			productReference = 9A53C9212F705B9900E9CD72 /* ReadlingListWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		AA53CE052F70AAAA00E9CD72 /* ProcrastinateShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA53CE0B2F70AAAA00E9CD72 /* Build configuration list for PBXNativeTarget "ProcrastinateShare" */;
+			buildPhases = (
+				AA53CE062F70AAAA00E9CD72 /* Sources */,
+				AA53CE072F70AAAA00E9CD72 /* Frameworks */,
+				AA53CE082F70AAAA00E9CD72 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				AA53CE092F70AAAA00E9CD72 /* ProcrastinateShare */,
+			);
+			name = ProcrastinateShare;
+			packageProductDependencies = (
+			);
+			productName = ProcrastinateShare;
+			productReference = AA53CE012F70AAAA00E9CD72 /* ProcrastinateShare.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -190,6 +249,9 @@
 						CreatedOnToolsVersion = 26.3;
 					};
 					9A53C9202F705B9900E9CD72 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					AA53CE052F70AAAA00E9CD72 = {
 						CreatedOnToolsVersion = 26.3;
 					};
 				};
@@ -210,6 +272,7 @@
 			targets = (
 				9A2A56502F6F938F00FFB56C /* ReadingList */,
 				9A53C9202F705B9900E9CD72 /* ReadlingListWidgetExtension */,
+				AA53CE052F70AAAA00E9CD72 /* ProcrastinateShare */,
 			);
 		};
 /* End PBXProject section */
@@ -223,6 +286,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		9A53C91F2F705B9900E9CD72 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA53CE082F70AAAA00E9CD72 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -246,6 +316,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AA53CE062F70AAAA00E9CD72 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -254,6 +331,11 @@
 			platformFilter = ios;
 			target = 9A53C9202F705B9900E9CD72 /* ReadlingListWidgetExtension */;
 			targetProxy = 9A53C92F2F705B9A00E9CD72 /* PBXContainerItemProxy */;
+		};
+		AA53CE042F70AAAA00E9CD72 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA53CE052F70AAAA00E9CD72 /* ProcrastinateShare */;
+			targetProxy = AA53CE032F70AAAA00E9CD72 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -384,8 +466,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ReadingList/ReadingList.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2V5659YMQ8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -421,8 +504,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ReadingList/ReadingList.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2V5659YMQ8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -459,7 +543,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2V5659YMQ8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ReadlingListWidget/Info.plist;
@@ -492,7 +576,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2V5659YMQ8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ReadlingListWidget/Info.plist;
@@ -512,6 +596,72 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		AA53CE0C2F70AAAA00E9CD72 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ProcrastinateShare/ProcrastinateShare.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 2V5659YMQ8;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ProcrastinateShare/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Procrastinate;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aseva.procrastinate.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AA53CE0D2F70AAAA00E9CD72 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ProcrastinateShare/ProcrastinateShare.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 2V5659YMQ8;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ProcrastinateShare/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Procrastinate;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aseva.procrastinate.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
@@ -545,6 +695,15 @@
 			buildConfigurations = (
 				9A53C9342F705B9A00E9CD72 /* Debug */,
 				9A53C9352F705B9A00E9CD72 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA53CE0B2F70AAAA00E9CD72 /* Build configuration list for PBXNativeTarget "ProcrastinateShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA53CE0C2F70AAAA00E9CD72 /* Debug */,
+				AA53CE0D2F70AAAA00E9CD72 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
