@@ -66,6 +66,7 @@
 			membershipExceptions = (
 				Info.plist,
 				ReadingList.entitlements,
+				"ReadingList-macOS.entitlements",
 			);
 			target = 9A2A56502F6F938F00FFB56C /* ReadingList */;
 		};
@@ -74,6 +75,7 @@
 			membershipExceptions = (
 				Info.plist,
 				ProcrastinateShare.entitlements,
+				"ProcrastinateShare-macOS.entitlements",
 			);
 			target = AA53CE052F70AAAA00E9CD72 /* ProcrastinateShare */;
 		};
@@ -467,6 +469,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = ReadingList/ReadingList.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "ReadingList/ReadingList-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2V5659YMQ8;
@@ -505,6 +508,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = ReadingList/ReadingList.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "ReadingList/ReadingList-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2V5659YMQ8;
@@ -607,6 +611,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ProcrastinateShare/ProcrastinateShare.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "ProcrastinateShare/ProcrastinateShare-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2V5659YMQ8;
@@ -640,6 +645,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ProcrastinateShare/ProcrastinateShare.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "ProcrastinateShare/ProcrastinateShare-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2V5659YMQ8;
