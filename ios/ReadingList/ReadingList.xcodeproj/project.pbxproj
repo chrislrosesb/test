@@ -471,7 +471,7 @@
 				CODE_SIGN_ENTITLEMENTS = ReadingList/ReadingList.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "ReadingList/ReadingList-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 2V5659YMQ8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -510,7 +510,7 @@
 				CODE_SIGN_ENTITLEMENTS = ReadingList/ReadingList.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "ReadingList/ReadingList-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 2V5659YMQ8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -547,7 +547,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 2V5659YMQ8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ReadlingListWidget/Info.plist;
@@ -580,7 +580,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 2V5659YMQ8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ReadlingListWidget/Info.plist;
@@ -613,7 +613,7 @@
 				CODE_SIGN_ENTITLEMENTS = ProcrastinateShare/ProcrastinateShare.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "ProcrastinateShare/ProcrastinateShare-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 2V5659YMQ8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ProcrastinateShare/Info.plist;
@@ -647,7 +647,7 @@
 				CODE_SIGN_ENTITLEMENTS = ProcrastinateShare/ProcrastinateShare.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "ProcrastinateShare/ProcrastinateShare-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 2V5659YMQ8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ProcrastinateShare/Info.plist;
